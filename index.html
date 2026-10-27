@@ -4,26 +4,35 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#7c5cff">
   <title>Puzzle Hub</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <main class="hub">
     <div class="hub-head">
-      <h1>Puzzle Hub</h1>
-      <p id="date"></p>
+      <div class="logo" aria-hidden="true">🧩</div>
+      <div>
+        <h1>Puzzle Hub</h1>
+        <p id="date"></p>
+      </div>
+      <div class="streak-chip" id="streak"></div>
     </div>
-    <p class="progress-line" id="progress"></p>
+    <section class="today" aria-label="Today's progress">
+      <div class="today-top"><strong id="progress"></strong><span id="progressNote"></span></div>
+      <div class="segments" id="segments"></div>
+    </section>
     <section class="cards" id="cards"></section>
-    <p class="hub-foot">No ads, no accounts, no tracking. Your progress is saved only in this browser.</p>
+    <p class="hub-foot">No ads · no accounts · no tracking. Your progress lives only in this browser.</p>
   </main>
   <script src="js/common.js"></script>
   <script>
-    const { GAMES, todayKey, prettyDate, getStats, liveStreak, dailyState, formatScore, el } = PZ;
+    const { GAMES, todayKey, prettyDate, getStats, liveStreak, dailyState, formatScore, el, parseHTML } = PZ;
     const today = todayKey();
     document.getElementById('date').textContent = prettyDate(today);
 
-    let done = 0;
+    let done = 0, best = 0;
+    const segments = [];
     const cards = GAMES.map((g) => {
       const s = getStats(g.id);
       const result = s.history[today];
@@ -31,25 +40,33 @@
       if (result) {
         done++;
         badge = result.won
-          ? el('span', { class: 'badge done' }, g.kind === 'time' ? `✓ ${formatScore(g, result.score)}` : `✓ ${result.score}`)
+          ? el('span', { class: 'badge done' }, `✓ ${formatScore(g, result.score)}`)
           : el('span', { class: 'badge lost' }, 'Missed');
       } else if (dailyState(g.id, today)) {
         badge = el('span', { class: 'badge going' }, 'In progress');
       } else {
-        badge = el('span', { class: 'badge' }, 'Not started');
+        badge = el('span', { class: 'badge' }, 'New today');
       }
       const streak = liveStreak(s);
-      return el('article', { class: 'card' },
-        el('h2', {}, g.name, badge),
+      best = Math.max(best, streak);
+      segments.push(el('span', { title: g.name, style: result ? `background:${g.color}` : '' }));
+      return el('article', { class: 'card', style: `--game:${g.color}` },
+        el('div', { class: 'card-top' },
+          el('div', { class: 'game-icon' }, ...parseHTML(g.icon)),
+          el('h2', {}, g.name),
+          badge),
         el('p', {}, g.blurb),
-        el('div', { class: 'card-meta' }, streak ? `🔥 ${streak}-day streak` : `${s.played} daily played`),
+        el('div', { class: 'card-meta' }, streak ? `🔥 ${streak}-day streak` : s.played ? `${s.played} played` : 'Not played yet'),
         el('div', { class: 'card-actions' },
-          el('a', { class: 'btn primary', href: g.path }, result ? 'View daily' : 'Play daily'),
+          el('a', { class: 'btn primary', href: g.path }, result ? 'View daily' : 'Play ▶'),
           el('a', { class: 'btn', href: `${g.path}?mode=practice` }, 'Practice')));
     });
     document.getElementById('cards').append(...cards);
-    document.getElementById('progress').textContent =
-      done === GAMES.length ? `All ${done} dailies done. Nice work.` : `${done} of ${GAMES.length} dailies done today`;
+    document.getElementById('segments').append(...segments);
+    document.getElementById('progress').textContent = `${done} of ${GAMES.length} dailies done`;
+    document.getElementById('progressNote').textContent =
+      done === GAMES.length ? 'All done. See you tomorrow! 🎉' : done ? 'Keep it going!' : 'Fresh puzzles are waiting';
+    document.getElementById('streak').textContent = best ? `🔥 ${best}-day streak` : '✨ Start a streak';
   </script>
 </body>
 </html>

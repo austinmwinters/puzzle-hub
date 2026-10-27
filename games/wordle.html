@@ -28,7 +28,7 @@
     PZ.header(GAME, { onHelp: help });
 
     const today = PZ.todayKey();
-    let answer, guesses, current = '', over = false;
+    let answer, guesses, current = '', over = false, revealing = -1;
 
     function score(guess, target) {
       const res = Array(5).fill('absent'), left = {};
@@ -55,7 +55,8 @@
       const rank = { absent: 1, present: 2, correct: 3 }, keyState = {};
       rows.forEach((row, i) => {
         const word = i < guesses.length ? guesses[i] : i === guesses.length ? current : '';
-        const marks = i < guesses.length ? score(guesses[i], answer) : null;
+        // The row being revealed gets its colours from reveal(), tile by tile.
+        const marks = i < guesses.length && i !== revealing ? score(guesses[i], answer) : null;
         [...row.children].forEach((tile, j) => {
           tile.textContent = word[j] || '';
           tile.className = 'tile' + (word[j] ? ' filled' : '') + (marks ? ` ${marks[j]}` : '');
@@ -79,6 +80,7 @@
       over = true;
       const won = guesses[guesses.length - 1] === answer;
       if (!PZ.isPractice) PZ.recordDaily(GAME, today, won, won ? guesses.length : null);
+      if (won && animate) { rows[guesses.length - 1].classList.add('win'); PZ.confetti(); }
       const after = document.getElementById('after');
       after.replaceChildren(
         PZ.el('span', { class: `done-banner${won ? '' : ' lost'}` }, won ? `Solved in ${guesses.length}` : `The word was ${answer.toUpperCase()}`),
@@ -86,11 +88,23 @@
         PZ.isPractice ? PZ.el('button', { class: 'btn primary', onclick: newGame }, 'New word') : '');
       if (animate) setTimeout(() => PZ.showModal(won ? 'Solved!' : 'Out of guesses',
         PZ.el('div', {}, PZ.el('p', {}, won ? `You got it in ${guesses.length}.` : `The word was ${answer.toUpperCase()}.`),
-          PZ.isPractice ? null : PZ.statsPanel(GAME))), 400);
+          PZ.isPractice ? null : PZ.statsPanel(GAME))), won ? 1100 : 400);
+    }
+
+    // Flip each tile of the newest row in turn, colouring it at the half-way point.
+    function reveal(i) {
+      revealing = i;
+      render();
+      const marks = score(guesses[i], answer), tiles = [...rows[i].children], STEP = 260;
+      tiles.forEach((t, j) => {
+        setTimeout(() => t.classList.add('flip'), j * STEP);
+        setTimeout(() => t.classList.add(marks[j]), j * STEP + 250);
+      });
+      return new Promise((done) => setTimeout(() => { revealing = -1; render(); done(); }, 4 * STEP + 520));
     }
 
     function onKey(k) {
-      if (over) return;
+      if (over || revealing >= 0) return;
       if (k === 'back') current = current.slice(0, -1);
       else if (k === 'enter') {
         if (current.length < 5) return reject('Not enough letters');
@@ -98,8 +112,9 @@
         guesses.push(current);
         current = '';
         persist();
-        render();
-        if (guesses[guesses.length - 1] === answer || guesses.length === MAX) finish(true);
+        reveal(guesses.length - 1).then(() => {
+          if (guesses[guesses.length - 1] === answer || guesses.length === MAX) finish(true);
+        });
         return;
       } else if (current.length < 5) current += k;
       render();
@@ -117,6 +132,7 @@
       guesses = [];
       current = '';
       over = false;
+      rows.forEach((r) => r.classList.remove('win'));
       document.getElementById('after').replaceChildren();
       render();
     }

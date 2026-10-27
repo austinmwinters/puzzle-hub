@@ -128,12 +128,13 @@
       const won = guesses.includes(answer);
       if (!PZ.isPractice) PZ.recordDaily(GAME, today, won, won ? guesses.length : null);
       render();
+      if (won && animate) { document.getElementById('input').classList.add('win'); PZ.confetti(); }
       const share = `Betweenle ${PZ.isPractice ? '(practice)' : today} ${won ? guesses.length : 'X'}/${MAX}`;
       document.getElementById('after').replaceChildren(
         PZ.el('span', { class: `done-banner${won ? '' : ' lost'}` }, won ? `Found in ${guesses.length}` : `The word was ${answer.toUpperCase()}`),
         PZ.el('button', { class: 'btn', onclick: () => WG.copy(share) }, 'Copy result'),
         PZ.isPractice ? PZ.el('button', { class: 'btn primary', onclick: newGame }, 'New word') : '');
-      if (animate && !PZ.isPractice) setTimeout(() => PZ.showModal(won ? 'Found it!' : 'Out of guesses', PZ.statsPanel(GAME)), 400);
+      if (animate && !PZ.isPractice) setTimeout(() => PZ.showModal(won ? 'Found it!' : 'Out of guesses', PZ.statsPanel(GAME)), won ? 1100 : 400);
     }
 
     function onKey(k) {
@@ -157,6 +158,7 @@
       guesses = [];
       current = '';
       over = false;
+      document.getElementById('input').classList.remove('win');
       document.getElementById('after').replaceChildren();
       render();
     }

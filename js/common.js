@@ -1,13 +1,22 @@
 // Shared helpers for every game: dates, seeded randomness, local storage,
 // stats/streaks, the page header and modals. No network calls, ever.
 (() => {
+  // Icons are inline SVG drawn in currentColor, so they need no extra requests.
+  const svg = (body) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+  const ICONS = {
+    wordle: svg('<rect x="2.5" y="7" width="5.5" height="10" rx="1.5" fill="currentColor"/><rect x="9.25" y="7" width="5.5" height="10" rx="1.5"/><rect x="16" y="7" width="5.5" height="10" rx="1.5" fill="currentColor" opacity=".55"/>'),
+    betweenle: svg('<path d="M12 3v18"/><path d="M7 7l5-4 5 4"/><path d="M7 17l5 4 5-4"/><circle cx="12" cy="12" r="2.4" fill="currentColor"/>'),
+    sudoku: svg('<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/>'),
+    nonogram: svg('<rect x="3" y="3" width="5" height="5" rx="1" fill="currentColor"/><rect x="9.5" y="3" width="5" height="5" rx="1"/><rect x="16" y="3" width="5" height="5" rx="1" fill="currentColor"/><rect x="3" y="9.5" width="5" height="5" rx="1"/><rect x="9.5" y="9.5" width="5" height="5" rx="1" fill="currentColor"/><rect x="16" y="9.5" width="5" height="5" rx="1"/><rect x="3" y="16" width="5" height="5" rx="1" fill="currentColor"/><rect x="9.5" y="16" width="5" height="5" rx="1" fill="currentColor"/><rect x="16" y="16" width="5" height="5" rx="1" fill="currentColor"/>'),
+    minesweeper: svg('<circle cx="12" cy="13" r="6" fill="currentColor"/><path d="M12 3.5v3M12 19.5v1.5M3.5 13h2M18.5 13h2M6 7l1.5 1.5M18 7l-1.5 1.5"/><circle cx="10" cy="11" r="1.4" fill="#fff" stroke="none"/>'),
+  };
   const GAMES = [
-    { id: 'wordle', name: 'Wordle', path: 'games/wordle.html', blurb: 'Six tries to find the five-letter word.', kind: 'guesses' },
-    { id: 'betweenle', name: 'Betweenle', path: 'games/betweenle.html', blurb: 'Narrow it down alphabetically in 14 guesses.', kind: 'guesses' },
-    { id: 'sudoku', name: 'Sudoku', path: 'games/sudoku.html', blurb: 'Fill the grid so every row, column and box has 1–9.', kind: 'time' },
-    { id: 'nonogram', name: 'Nonogram', path: 'games/nonogram.html', blurb: 'Paint the picture from the row and column clues.', kind: 'time' },
-    { id: 'minesweeper', name: 'Minesweeper', path: 'games/minesweeper.html', blurb: 'Clear the board — no guessing required.', kind: 'time' },
-  ];
+    { id: 'wordle', name: 'Wordle', path: 'games/wordle.html', blurb: 'Six tries to find the five-letter word.', kind: 'guesses', color: '#1fb36b' },
+    { id: 'betweenle', name: 'Betweenle', path: 'games/betweenle.html', blurb: 'Narrow it down alphabetically in 14 guesses.', kind: 'guesses', color: '#8b5cf6' },
+    { id: 'sudoku', name: 'Sudoku', path: 'games/sudoku.html', blurb: 'Fill the grid so every row, column and box has 1–9.', kind: 'time', color: '#3b82f6' },
+    { id: 'nonogram', name: 'Nonogram', path: 'games/nonogram.html', blurb: 'Paint the picture from the row and column clues.', kind: 'time', color: '#f97316' },
+    { id: 'minesweeper', name: 'Minesweeper', path: 'games/minesweeper.html', blurb: 'Clear the board — no guessing required.', kind: 'time', color: '#ef4466' },
+  ].map((g) => ({ ...g, icon: ICONS[g.id] }));
 
   const EPOCH = Date.UTC(2026, 0, 1);
   const pad = (n) => String(n).padStart(2, '0');
@@ -169,10 +178,11 @@
   function header(gameId, { onHelp } = {}) {
     const game = GAMES.find((g) => g.id === gameId);
     document.title = `${game.name} · Puzzle Hub`;
+    document.documentElement.style.setProperty('--game', game.color);
     const base = location.pathname;
     const bar = el('header', { class: 'topbar' },
       el('a', { class: 'icon-btn', href: '../index.html', 'aria-label': 'All games' }, '←'),
-      el('h1', {}, game.name),
+      el('h1', {}, ...parseHTML(game.icon), game.name),
       el('nav', { class: 'mode-switch', 'aria-label': 'Mode' },
         el('a', { href: base, class: isPractice ? '' : 'active' }, 'Daily'),
         el('a', { href: `${base}?mode=practice`, class: isPractice ? 'active' : '' }, 'Practice')),
@@ -197,10 +207,37 @@
     };
   }
 
+  // A short burst of confetti in the page's game colour plus a few friends.
+  function confetti() {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const canvas = el('canvas', { class: 'confetti' });
+    document.body.append(canvas);
+    const ctx = canvas.getContext('2d'), dpr = devicePixelRatio || 1;
+    canvas.width = innerWidth * dpr; canvas.height = innerHeight * dpr;
+    ctx.scale(dpr, dpr);
+    const colors = [getComputedStyle(document.documentElement).getPropertyValue('--game').trim() || '#7c5cff', '#f0b429', '#22b06b', '#ef4466', '#3b82f6', '#8b5cf6'];
+    const bits = [...Array(140)].map(() => ({
+      x: innerWidth / 2 + (Math.random() - .5) * 120, y: innerHeight * .35,
+      vx: (Math.random() - .5) * 14, vy: -Math.random() * 14 - 4,
+      w: 6 + Math.random() * 6, h: 8 + Math.random() * 8, r: Math.random() * 6, vr: (Math.random() - .5) * .4,
+      c: colors[Math.floor(Math.random() * colors.length)],
+    }));
+    const t0 = performance.now();
+    (function frame(t) {
+      ctx.clearRect(0, 0, innerWidth, innerHeight);
+      for (const b of bits) {
+        b.vy += .35; b.vx *= .99; b.x += b.vx; b.y += b.vy; b.r += b.vr;
+        ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.r); ctx.fillStyle = b.c;
+        ctx.fillRect(-b.w / 2, -b.h / 2, b.w, b.h * Math.abs(Math.cos(b.r * 2))); ctx.restore();
+      }
+      if (t - t0 < 2600) requestAnimationFrame(frame); else canvas.remove();
+    })(t0);
+  }
+
   window.PZ = {
     GAMES, todayKey, dayNumber, prettyDate, hash, rng, load, save,
     getStats, recordDaily, liveStreak, dailyState, saveDailyState,
     formatTime, formatScore, isPractice, params, el, showModal, closeModal, toast,
-    statsPanel, header, stopwatch,
+    statsPanel, header, stopwatch, confetti, parseHTML,
   };
 })();

@@ -12,14 +12,14 @@
     .clue-row { display: flex; justify-content: flex-end; align-items: center; padding-right: 6px; gap: 5px; font-size: calc(var(--cs) * .45); font-weight: 600; }
     .clue-col.ok, .clue-row.ok { color: var(--muted); opacity: .45; }
     .nc { width: var(--cs); height: var(--cs); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); background: var(--surface); cursor: pointer; display: grid; place-items: center; color: var(--muted); font-size: calc(var(--cs) * .55); }
-    .nc.fill { background: var(--text); }
+    .nc.fill { background: var(--game); box-shadow: inset 0 -3px 0 var(--game-dark); }
     .nc.x::after { content: '×'; }
     .nc.c5 { border-right: 2px solid var(--text); }
     .nc.r5 { border-bottom: 2px solid var(--text); }
     .nc.c0 { border-left: 2px solid var(--text); }
     .nc.r0 { border-top: 2px solid var(--text); }
-    .nc.hl { box-shadow: inset 0 0 0 999px rgba(127, 127, 127, .12); }
-    .nc.fill.hl { box-shadow: none; }
+    .nc.hl:not(.fill) { background: var(--game-soft); }
+    .board-card { padding: 10px 12px 12px 6px; }
   </style>
 </head>
 <body>
@@ -32,7 +32,7 @@
       </select>
       <button class="btn" id="newBtn" hidden>New puzzle</button>
     </div>
-    <div class="ngrid" id="grid"></div>
+    <div class="board-card"><div class="ngrid" id="grid"></div></div>
     <div class="toolbar">
       <button class="btn on" id="fillBtn">■ Fill</button>
       <button class="btn" id="xBtn">× Mark empty</button>
@@ -135,7 +135,7 @@
 
     function build() {
       const longestRow = Math.max(...rows.map((r) => r.length || 1));
-      const avail = Math.min(window.innerWidth, 640) - 32;
+      const avail = Math.min(window.innerWidth, 640) - 52;
       const cs = Math.max(16, Math.min(34, Math.floor(avail / (n + longestRow * 0.6 + 0.5))));
       gridEl.style.setProperty('--cs', `${cs}px`);
       gridEl.style.gridTemplateColumns = `auto repeat(${n}, var(--cs))`;
@@ -226,7 +226,8 @@
       if (!PZ.isPractice && fresh) PZ.recordDaily(GAME, today, true, timer.seconds);
       if (!PZ.isPractice) PZ.saveDailyState(GAME, today, { cells, elapsed: timer.seconds, done: true });
       document.getElementById('after').replaceChildren(PZ.el('span', { class: 'done-banner' }, `Solved in ${PZ.formatTime(timer.seconds)}`));
-      if (fresh && !PZ.isPractice) setTimeout(() => PZ.showModal('Solved!', PZ.statsPanel(GAME)), 300);
+      if (fresh) PZ.confetti();
+      if (fresh && !PZ.isPractice) setTimeout(() => PZ.showModal('Solved!', PZ.statsPanel(GAME)), 900);
     }
 
     document.getElementById('fillBtn').onclick = () => { tool = 1; render(); };

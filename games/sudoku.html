@@ -7,21 +7,22 @@
   <title>Sudoku · Puzzle Hub</title>
   <link rel="stylesheet" href="../css/style.css">
   <style>
-    .sgrid { display: grid; grid-template-columns: repeat(9, 1fr); width: min(100%, 468px); aspect-ratio: 1; border: 2px solid var(--text); background: var(--surface); user-select: none; }
+    .sgrid { display: grid; grid-template-columns: repeat(9, 1fr); width: min(100%, 468px); aspect-ratio: 1; border: 3px solid var(--text); border-radius: 16px; overflow: hidden; background: var(--surface); user-select: none; box-shadow: var(--shadow); }
     .sc { border: 1px solid var(--border); display: grid; place-items: center; font-size: clamp(1.1rem, 5.5vw, 1.7rem); cursor: pointer; position: relative; color: var(--accent); font-weight: 600; }
     .sc.given { color: var(--text); font-weight: 700; }
     .sc:nth-child(9n+3), .sc:nth-child(9n+6) { border-right: 2px solid var(--text); }
     .sc:nth-child(n+19):nth-child(-n+27), .sc:nth-child(n+46):nth-child(-n+54) { border-bottom: 2px solid var(--text); }
     .sc.peer { background: var(--surface-2); }
     .sc.same { background: var(--cell-shade); }
-    .sc.sel { background: var(--accent); color: var(--accent-text); }
+    .sc.sel { background: var(--game); color: #fff; }
     .sc.bad { color: var(--danger); }
     .sc.sel.bad { color: #fff; text-decoration: underline; }
     .notes { position: absolute; inset: 1px; display: grid; grid-template-columns: repeat(3, 1fr); font-size: clamp(.5rem, 2.2vw, .7rem); color: var(--muted); font-weight: 500; }
     .notes span { display: grid; place-items: center; }
     .sc.sel .notes { color: var(--accent-text); }
     .pad { display: grid; grid-template-columns: repeat(9, 1fr); gap: 5px; width: min(100%, 468px); }
-    .pad button { height: 48px; font-size: 1.3rem; font-weight: 700; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); cursor: pointer; }
+    .pad button { height: 50px; font-size: 1.35rem; font-weight: 900; border-radius: 12px; border: 0; background: var(--surface); color: var(--game); cursor: pointer; box-shadow: 0 3px 0 var(--raise); }
+    .pad button:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--raise); }
     .pad button.spent { opacity: .3; }
   </style>
 </head>
@@ -180,7 +181,8 @@
       if (!PZ.isPractice && fresh) PZ.recordDaily(GAME, today, true, timer.seconds);
       if (!PZ.isPractice) PZ.saveDailyState(GAME, today, { values, notes, elapsed: timer.seconds, done: true });
       document.getElementById('after').replaceChildren(PZ.el('span', { class: 'done-banner' }, `Solved in ${PZ.formatTime(timer.seconds)}`));
-      if (fresh && !PZ.isPractice) setTimeout(() => PZ.showModal('Solved!', PZ.statsPanel(GAME)), 300);
+      if (fresh) PZ.confetti();
+      if (fresh && !PZ.isPractice) setTimeout(() => PZ.showModal('Solved!', PZ.statsPanel(GAME)), 900);
     }
 
     function start(gen, saved) {

@@ -7,10 +7,12 @@
   <title>Minesweeper · Puzzle Hub</title>
   <link rel="stylesheet" href="../css/style.css">
   <style>
-    .mgrid { display: grid; user-select: none; -webkit-user-select: none; touch-action: manipulation; border: 2px solid var(--border); --cs: 28px; }
+    .mgrid { display: grid; user-select: none; -webkit-user-select: none; touch-action: manipulation; border-radius: 12px; overflow: hidden; --cs: 28px; }
     .mc { width: var(--cs); height: var(--cs); display: grid; place-items: center; font-weight: 800; font-size: calc(var(--cs) * .58); cursor: pointer;
-          background: var(--surface-2); border: 1px solid var(--surface); box-shadow: inset -2px -2px 0 rgba(0,0,0,.08); -webkit-touch-callout: none; }
+          background: color-mix(in srgb, var(--game) 30%, var(--surface)); border: 1px solid var(--surface); box-shadow: inset 0 -3px 0 color-mix(in srgb, var(--game) 45%, var(--surface)); -webkit-touch-callout: none; }
+    .mc:not(.open):hover { filter: brightness(1.08); }
     .mc.open { background: var(--surface); border-color: var(--surface-2); box-shadow: none; cursor: default; }
+    .board-card { padding: 8px; }
     .mc.flag::after { content: '⚑'; color: var(--danger); }
     .mc.mine::after { content: '●'; color: var(--text); }
     .mc.boom { background: var(--danger); }
@@ -32,7 +34,7 @@
       </select>
       <button class="btn" id="newBtn" hidden>New board</button>
     </div>
-    <div class="mgrid" id="grid"></div>
+    <div class="board-card"><div class="mgrid" id="grid"></div></div>
     <div class="toolbar">
       <button class="btn" id="flagBtn">⚑ Flag mode: off</button>
     </div>
@@ -136,7 +138,7 @@
     }
 
     function build() {
-      const cs = Math.max(18, Math.min(32, Math.floor((Math.min(window.innerWidth, 700) - 36) / W)));
+      const cs = Math.max(18, Math.min(32, Math.floor((Math.min(window.innerWidth, 700) - 52) / W)));
       gridEl.style.setProperty('--cs', `${cs}px`);
       gridEl.style.gridTemplateColumns = `repeat(${W}, var(--cs))`;
       cellEls = [...Array(W * H)].map((_, i) => PZ.el('div', { class: 'mc', 'data-i': i }));
@@ -219,7 +221,8 @@
       document.getElementById('after').replaceChildren(
         PZ.el('span', { class: `done-banner${won ? '' : ' lost'}` }, won ? `Cleared in ${PZ.formatTime(timer.seconds)}` : PZ.isPractice ? 'Boom! Try another board.' : 'Boom. Better luck tomorrow.'),
         PZ.isPractice ? PZ.el('button', { class: 'btn primary', onclick: fresh0 }, 'New board') : '');
-      if (fresh && !PZ.isPractice) setTimeout(() => PZ.showModal(won ? 'Cleared!' : 'Hit a mine', PZ.statsPanel(GAME)), 500);
+      if (fresh && won) PZ.confetti();
+      if (fresh && !PZ.isPractice) setTimeout(() => PZ.showModal(won ? 'Cleared!' : 'Hit a mine', PZ.statsPanel(GAME)), won ? 900 : 500);
     }
 
     // Input: click opens, right-click or long-press flags, flag mode swaps them.
