@@ -14,9 +14,11 @@
     .pips { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
     .pip { width: 12px; height: 12px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--border); }
     .pip.used { background: var(--muted); border-color: var(--muted); }
-    .stack-wrap { display: flex; gap: 12px; align-items: stretch; }
-    .scale { width: 18px; position: relative; margin: 22px 0; border-radius: 9px; background: var(--surface); border: 2px solid var(--muted); overflow: hidden; transition: opacity .3s; }
-    .scale.hidden { opacity: 0; }
+    .stack-wrap { display: flex; gap: 8px; align-items: stretch; }
+    .scale-col { position: relative; display: flex; margin: 22px 0; padding-left: 36px; transition: opacity .3s; }
+    .scale-col.hidden { opacity: 0; }
+    .scale-label { position: absolute; left: 0; width: 32px; text-align: right; font-weight: 800; font-size: .85rem; font-variant-numeric: tabular-nums; transform: translateY(-50%); transition: top .5s ease; }
+    .scale { width: 18px; position: relative; border-radius: 9px; background: var(--surface); border: 2px solid var(--muted); overflow: hidden; }
     .scale-fill { position: absolute; left: 0; right: 0; top: 0; background: var(--accent); transition: height .5s ease; }
     .scale-mark { position: absolute; left: 0; right: 0; height: 4px; background: var(--present); transform: translateY(-50%); transition: top .5s ease; }
     .history { font-size: .85rem; color: var(--muted); text-align: center; max-width: 360px; }
@@ -27,7 +29,10 @@
     <p class="subline" id="sub"></p>
     <div class="pips" id="pips"></div>
     <div class="stack-wrap">
-      <div class="scale hidden" id="scale" title="Where the word sits between the two boundaries"><div class="scale-fill" id="scaleFill"></div><div class="scale-mark" id="scaleMark"></div></div>
+      <div class="scale-col hidden" id="scale" title="How far the word is from the top boundary toward the bottom one">
+        <div class="scale-label" id="scaleLabel"></div>
+        <div class="scale"><div class="scale-fill" id="scaleFill"></div><div class="scale-mark" id="scaleMark"></div></div>
+      </div>
       <div>
       <div class="bound-label">comes after</div>
       <div class="row bound" id="low"></div>
@@ -51,7 +56,7 @@
       <p>Find the hidden five-letter word in ${MAX} guesses.</p>
       <p>Each guess tells you whether the word comes <b>before</b> or <b>after</b> it in alphabetical order, and becomes the new boundary above or below.</p>
       <p>Letters that both boundaries share at the start are shown in green, because the hidden word must start with them too.</p>
-      <p>After your first guess, the bar on the left shows how close the word is to each boundary: the nearer the mark is to a word, the closer the answer is to it in the dictionary.</p>
+      <p>After your first guess, the bar and number on the left show where the word sits between the boundaries. <b>0%</b> is right at the top word and <b>100%</b> is right at the bottom word, so <b>85%</b> means it's much closer to the bottom one.</p>
       <p>Your guess has to fall between the current boundaries.</p>`);
     PZ.header(GAME, { onHelp: help });
 
@@ -89,6 +94,9 @@
       const pct = (100 * (rank(answer) - a)) / Math.max(1, b - a);
       document.getElementById('scaleFill').style.height = `${pct}%`;
       document.getElementById('scaleMark').style.top = `${pct}%`;
+      const label = document.getElementById('scaleLabel');
+      label.style.top = `${pct}%`;
+      label.textContent = `${Math.round(pct)}%`;
     }
 
     function render() {
