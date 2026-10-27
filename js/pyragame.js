@@ -134,8 +134,10 @@
       persist();
     }
     // ---------- groups ----------
-    // Gold-marked and confirmed-green links tie their pieces into a group that moves as one.
-    const bonded = (i) => marks.has(pairKey(order[i], order[parentOf(i)])) || verdict[judge(i).key] === true;
+    // Gold-marked links tie their pieces into a group that moves as one. Once a check has
+    // judged a link, its mark no longer binds: green pieces near the top lock on their own,
+    // and everything else stays free to rearrange.
+    const bonded = (i) => marks.has(pairKey(order[i], order[parentOf(i)])) && verdict[judge(i).key] == null;
     function groupOf(i) {
       let top = i;
       while (top > 0 && bonded(top)) top = parentOf(top);
