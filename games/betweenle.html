@@ -14,6 +14,11 @@
     .pips { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
     .pip { width: 12px; height: 12px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--border); }
     .pip.used { background: var(--muted); border-color: var(--muted); }
+    .stack-wrap { display: flex; gap: 12px; align-items: stretch; }
+    .scale { width: 18px; position: relative; margin: 22px 0; border-radius: 9px; background: var(--surface); border: 2px solid var(--muted); overflow: hidden; transition: opacity .3s; }
+    .scale.hidden { opacity: 0; }
+    .scale-fill { position: absolute; left: 0; right: 0; top: 0; background: var(--accent); transition: height .5s ease; }
+    .scale-mark { position: absolute; left: 0; right: 0; height: 4px; background: var(--present); transform: translateY(-50%); transition: top .5s ease; }
     .history { font-size: .85rem; color: var(--muted); text-align: center; max-width: 360px; }
   </style>
 </head>
@@ -21,7 +26,9 @@
   <main class="game">
     <p class="subline" id="sub"></p>
     <div class="pips" id="pips"></div>
-    <div>
+    <div class="stack-wrap">
+      <div class="scale hidden" id="scale" title="Where the word sits between the two boundaries"><div class="scale-fill" id="scaleFill"></div><div class="scale-mark" id="scaleMark"></div></div>
+      <div>
       <div class="bound-label">comes after</div>
       <div class="row bound" id="low"></div>
       <div class="arrow">▼</div>
@@ -29,6 +36,7 @@
       <div class="arrow">▼</div>
       <div class="row bound" id="high"></div>
       <div class="bound-label">comes before</div>
+      </div>
     </div>
     <div class="toolbar" id="after"></div>
     <div id="kb"></div>
@@ -43,6 +51,7 @@
       <p>Find the hidden five-letter word in ${MAX} guesses.</p>
       <p>Each guess tells you whether the word comes <b>before</b> or <b>after</b> it in alphabetical order, and becomes the new boundary above or below.</p>
       <p>Letters that both boundaries share at the start are shown in green, because the hidden word must start with them too.</p>
+      <p>After your first guess, the bar on the left shows how close the word is to each boundary: the nearer the mark is to a word, the closer the answer is to it in the dictionary.</p>
       <p>Your guess has to fall between the current boundaries.</p>`);
     PZ.header(GAME, { onHelp: help });
 
@@ -66,8 +75,25 @@
       return { low, high };
     }
 
+    // Position in the alphabetical guess list drives the closeness scale.
+    const SORTED = [...window.WORDS.valid].sort();
+    const rank = (w) => {
+      let lo = 0, hi = SORTED.length;
+      while (lo < hi) { const mid = (lo + hi) >> 1; if (SORTED[mid] < w) lo = mid + 1; else hi = mid; }
+      return lo;
+    };
+    function renderScale(low, high) {
+      const scale = document.getElementById('scale');
+      scale.classList.toggle('hidden', !guesses.length);
+      const a = low ? rank(low) : 0, b = high ? rank(high) : SORTED.length;
+      const pct = (100 * (rank(answer) - a)) / Math.max(1, b - a);
+      document.getElementById('scaleFill').style.height = `${pct}%`;
+      document.getElementById('scaleMark').style.top = `${pct}%`;
+    }
+
     function render() {
       const { low, high } = bounds();
+      renderScale(low, high);
       let shared = 0;
       if (low && high) while (shared < 5 && low[shared] === high[shared]) shared++;
       const fill = (ts, word, placeholder) => ts.forEach((t, i) => {
