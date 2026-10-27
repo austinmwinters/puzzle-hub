@@ -155,7 +155,7 @@ main.game { max-width: 640px; margin: 0 auto; padding: 18px 16px 32px; display: 
 .board { display: grid; gap: 6px; }
 .row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
 .tile {
-  width: clamp(46px, 14vw, 60px); aspect-ratio: 1; display: grid; place-items: center; border-radius: 12px;
+  width: clamp(38px, 14vw, 60px); aspect-ratio: 1; display: grid; place-items: center; border-radius: 12px;
   border: 2px solid var(--border); font-size: 1.85rem; font-weight: 900; text-transform: uppercase;
   background: var(--surface); user-select: none; box-shadow: 0 3px 0 var(--raise);
 }

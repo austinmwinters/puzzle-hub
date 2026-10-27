@@ -87,6 +87,15 @@
       while (lo < hi) { const mid = (lo + hi) >> 1; if (SORTED[mid] < w) lo = mid + 1; else hi = mid; }
       return lo;
     };
+    // True if some valid word strictly between the boundaries starts with current + letter.
+    function canType(letter) {
+      if (current.length >= 5) return false;
+      const { low, high } = bounds(), prefix = current + letter;
+      const first = Math.max(rank(prefix), low ? rank(low) + 1 : 0);
+      const last = Math.min(rank(prefix + '{'), high ? rank(high) : SORTED.length); // '{' sorts just after 'z'
+      return first < last;
+    }
+
     function renderScale(low, high) {
       const scale = document.getElementById('scale');
       scale.classList.toggle('hidden', !guesses.length);
@@ -118,9 +127,8 @@
       });
       document.getElementById('pips').replaceChildren(...[...Array(MAX)].map((_, i) => PZ.el('span', { class: `pip${i < guesses.length ? ' used' : ''}` })));
       document.getElementById('history').textContent = guesses.length ? 'Guesses: ' + guesses.map((g) => g.toUpperCase()).join(' · ') : '';
-      // Dim first letters that are already ruled out.
-      const lo = low ? low[0] : 'a', hi = high ? high[0] : 'z';
-      for (const [k, b] of Object.entries(kb.keys)) b.classList.toggle('dim', k.length === 1 && current.length === 0 && (k < lo || k > hi));
+      // Dim letters that can't continue the current entry into a word between the boundaries.
+      for (const [k, b] of Object.entries(kb.keys)) b.classList.toggle('dim', k.length === 1 && !over && !canType(k));
     }
 
     function finish(animate) {
@@ -149,7 +157,8 @@
         current = '';
         if (!PZ.isPractice) PZ.saveDailyState(GAME, today, { guesses });
         if (guesses.includes(answer) || guesses.length === MAX) return finish(true);
-      } else if (current.length < 5) current += k;
+      } else if (canType(k)) current += k;
+      else return;
       render();
     }
 
