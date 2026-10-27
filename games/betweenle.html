@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Betweenle · Puzzle Hub</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    .bound .tile { background: var(--surface-2); border-color: transparent; color: var(--muted); }
+    .bound .tile.shared { background: var(--correct); color: #fff; }
+    .bound-label { font-size: .78rem; color: var(--muted); text-align: center; margin: 2px 0; }
+    .arrow { text-align: center; color: var(--muted); font-size: .9rem; }
+    .pips { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
+    .pip { width: 12px; height: 12px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--border); }
+    .pip.used { background: var(--muted); border-color: var(--muted); }
+    .history { font-size: .85rem; color: var(--muted); text-align: center; max-width: 360px; }
+  </style>
+</head>
+<body>
+  <main class="game">
+    <p class="subline" id="sub"></p>
+    <div class="pips" id="pips"></div>
+    <div>
+      <div class="bound-label">comes after</div>
+      <div class="row bound" id="low"></div>
+      <div class="arrow">▼</div>
+      <div class="row" id="input"></div>
+      <div class="arrow">▼</div>
+      <div class="row bound" id="high"></div>
+      <div class="bound-label">comes before</div>
+    </div>
+    <div class="toolbar" id="after"></div>
+    <div id="kb"></div>
+    <p class="history" id="history"></p>
+  </main>
+  <script src="../js/common.js"></script>
+  <script src="../js/words.js"></script>
+  <script src="../js/wordgame.js"></script>
+  <script>
+    const GAME = 'betweenle', MAX = 14;
+    const help = () => PZ.showModal('How to play', `
+      <p>Find the hidden five-letter word in ${MAX} guesses.</p>
+      <p>Each guess tells you whether the word comes <b>before</b> or <b>after</b> it in alphabetical order, and becomes the new boundary above or below.</p>
+      <p>Letters that both boundaries share at the start are shown in green, because the hidden word must start with them too.</p>
+      <p>Your guess has to fall between the current boundaries.</p>`);
+    PZ.header(GAME, { onHelp: help });
+
+    const today = PZ.todayKey();
+    let answer, guesses, current = '', over = false;
+    const tiles = (id) => {
+      const row = document.getElementById(id);
+      row.replaceChildren(...[...Array(5)].map(() => PZ.el('div', { class: 'tile' })));
+      return [...row.children];
+    };
+    const lowTiles = tiles('low'), inTiles = tiles('input'), highTiles = tiles('high');
+    const kb = WG.keyboard(onKey);
+    document.getElementById('kb').append(kb.node);
+
+    function bounds() {
+      let low = null, high = null;
+      for (const g of guesses) {
+        if (g < answer && (!low || g > low)) low = g;
+        if (g > answer && (!high || g < high)) high = g;
+      }
+      return { low, high };
+    }
+
+    function render() {
+      const { low, high } = bounds();
+      let shared = 0;
+      if (low && high) while (shared < 5 && low[shared] === high[shared]) shared++;
+      const fill = (ts, word, placeholder) => ts.forEach((t, i) => {
+        t.textContent = word ? word[i] : placeholder[i];
+        t.className = 'tile' + (word && i < shared ? ' shared' : '');
+      });
+      fill(lowTiles, low, 'aaaaa');
+      fill(highTiles, high, 'zzzzz');
+      const won = guesses.includes(answer);
+      const shown = over ? answer : current;
+      inTiles.forEach((t, i) => {
+        t.textContent = shown[i] || '';
+        t.className = 'tile' + (shown[i] ? ' filled' : '') + (over ? (won ? ' correct' : ' absent') : '');
+      });
+      document.getElementById('pips').replaceChildren(...[...Array(MAX)].map((_, i) => PZ.el('span', { class: `pip${i < guesses.length ? ' used' : ''}` })));
+      document.getElementById('history').textContent = guesses.length ? 'Guesses: ' + guesses.map((g) => g.toUpperCase()).join(' · ') : '';
+      // Dim first letters that are already ruled out.
+      const lo = low ? low[0] : 'a', hi = high ? high[0] : 'z';
+      for (const [k, b] of Object.entries(kb.keys)) b.classList.toggle('dim', k.length === 1 && current.length === 0 && (k < lo || k > hi));
+    }
+
+    function finish(animate) {
+      over = true;
+      const won = guesses.includes(answer);
+      if (!PZ.isPractice) PZ.recordDaily(GAME, today, won, won ? guesses.length : null);
+      render();
+      const share = `Betweenle ${PZ.isPractice ? '(practice)' : today} ${won ? guesses.length : 'X'}/${MAX}`;
+      document.getElementById('after').replaceChildren(
+        PZ.el('span', { class: `done-banner${won ? '' : ' lost'}` }, won ? `Found in ${guesses.length}` : `The word was ${answer.toUpperCase()}`),
+        PZ.el('button', { class: 'btn', onclick: () => WG.copy(share) }, 'Copy result'),
+        PZ.isPractice ? PZ.el('button', { class: 'btn primary', onclick: newGame }, 'New word') : '');
+      if (animate && !PZ.isPractice) setTimeout(() => PZ.showModal(won ? 'Found it!' : 'Out of guesses', PZ.statsPanel(GAME)), 400);
+    }
+
+    function onKey(k) {
+      if (over) return;
+      if (k === 'back') current = current.slice(0, -1);
+      else if (k === 'enter') {
+        if (current.length < 5) return PZ.toast('Not enough letters');
+        if (!WG.isWord(current)) return PZ.toast('Not in word list');
+        const { low, high } = bounds();
+        if ((low && current <= low) || (high && current >= high)) return PZ.toast('Must be between the boundaries');
+        guesses.push(current);
+        current = '';
+        if (!PZ.isPractice) PZ.saveDailyState(GAME, today, { guesses });
+        if (guesses.includes(answer) || guesses.length === MAX) return finish(true);
+      } else if (current.length < 5) current += k;
+      render();
+    }
+
+    function newGame() {
+      answer = WG.randomAnswer();
+      guesses = [];
+      current = '';
+      over = false;
+      document.getElementById('after').replaceChildren();
+      render();
+    }
+
+    if (PZ.isPractice) {
+      document.getElementById('sub').textContent = 'Practice: unlimited words, no effect on stats';
+      newGame();
+    } else {
+      document.getElementById('sub').textContent = `Daily · ${PZ.prettyDate(today)}`;
+      answer = WG.dailyAnswer(GAME, today);
+      guesses = PZ.dailyState(GAME, today)?.guesses || [];
+      if (guesses.includes(answer) || guesses.length >= MAX) finish(false);
+      else { render(); if (!PZ.getStats(GAME).played) help(); }
+    }
+  </script>
+</body>
+</html>

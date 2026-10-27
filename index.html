@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Puzzle Hub</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <main class="hub">
+    <div class="hub-head">
+      <h1>Puzzle Hub</h1>
+      <p id="date"></p>
+    </div>
+    <p class="progress-line" id="progress"></p>
+    <section class="cards" id="cards"></section>
+    <p class="hub-foot">No ads, no accounts, no tracking. Your progress is saved only in this browser.</p>
+  </main>
+  <script src="js/common.js"></script>
+  <script>
+    const { GAMES, todayKey, prettyDate, getStats, liveStreak, dailyState, formatScore, el } = PZ;
+    const today = todayKey();
+    document.getElementById('date').textContent = prettyDate(today);
+
+    let done = 0;
+    const cards = GAMES.map((g) => {
+      const s = getStats(g.id);
+      const result = s.history[today];
+      let badge;
+      if (result) {
+        done++;
+        badge = result.won
+          ? el('span', { class: 'badge done' }, g.kind === 'time' ? `✓ ${formatScore(g, result.score)}` : `✓ ${result.score}`)
+          : el('span', { class: 'badge lost' }, 'Missed');
+      } else if (dailyState(g.id, today)) {
+        badge = el('span', { class: 'badge going' }, 'In progress');
+      } else {
+        badge = el('span', { class: 'badge' }, 'Not started');
+      }
+      const streak = liveStreak(s);
+      return el('article', { class: 'card' },
+        el('h2', {}, g.name, badge),
+        el('p', {}, g.blurb),
+        el('div', { class: 'card-meta' }, streak ? `🔥 ${streak}-day streak` : `${s.played} daily played`),
+        el('div', { class: 'card-actions' },
+          el('a', { class: 'btn primary', href: g.path }, result ? 'View daily' : 'Play daily'),
+          el('a', { class: 'btn', href: `${g.path}?mode=practice` }, 'Practice')));
+    });
+    document.getElementById('cards').append(...cards);
+    document.getElementById('progress').textContent =
+      done === GAMES.length ? `All ${done} dailies done. Nice work.` : `${done} of ${GAMES.length} dailies done today`;
+  </script>
+</body>
+</html>

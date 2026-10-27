@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Nonogram · Puzzle Hub</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    .ngrid { display: grid; user-select: none; touch-action: none; --cs: 30px; }
+    .clue-col { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; padding-bottom: 4px; gap: 1px; font-size: calc(var(--cs) * .45); font-weight: 600; line-height: 1.1; }
+    .clue-row { display: flex; justify-content: flex-end; align-items: center; padding-right: 6px; gap: 5px; font-size: calc(var(--cs) * .45); font-weight: 600; }
+    .clue-col.ok, .clue-row.ok { color: var(--muted); opacity: .45; }
+    .nc { width: var(--cs); height: var(--cs); border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); background: var(--surface); cursor: pointer; display: grid; place-items: center; color: var(--muted); font-size: calc(var(--cs) * .55); }
+    .nc.fill { background: var(--text); }
+    .nc.x::after { content: '×'; }
+    .nc.c5 { border-right: 2px solid var(--text); }
+    .nc.r5 { border-bottom: 2px solid var(--text); }
+    .nc.c0 { border-left: 2px solid var(--text); }
+    .nc.r0 { border-top: 2px solid var(--text); }
+    .nc.hl { box-shadow: inset 0 0 0 999px rgba(127, 127, 127, .12); }
+    .nc.fill.hl { box-shadow: none; }
+  </style>
+</head>
+<body>
+  <main class="game">
+    <p class="subline" id="sub"></p>
+    <div class="toolbar">
+      <span class="timer" id="timer">0:00</span>
+      <select class="btn" id="size" hidden aria-label="Size">
+        <option value="5">5×5</option><option value="10" selected>10×10</option><option value="15">15×15</option>
+      </select>
+      <button class="btn" id="newBtn" hidden>New puzzle</button>
+    </div>
+    <div class="ngrid" id="grid"></div>
+    <div class="toolbar">
+      <button class="btn on" id="fillBtn">■ Fill</button>
+      <button class="btn" id="xBtn">× Mark empty</button>
+      <button class="btn" id="undoBtn">Undo</button>
+      <button class="btn" id="clearBtn">Clear</button>
+    </div>
+    <div class="toolbar" id="after"></div>
+  </main>
+  <script src="../js/common.js"></script>
+  <script>
+    const GAME = 'nonogram';
+    const help = () => PZ.showModal('How to play', `
+      <p>Fill in squares to reveal a pattern. The numbers beside each row and above each column list the runs of filled squares in that line, in order.</p>
+      <p>For example, <b>3 1</b> means a run of three, then at least one gap, then a single square.</p>
+      <ul><li>Tap or drag to fill. Right-click, or switch to <b>× Mark empty</b>, to mark squares you know are blank.</li>
+      <li>A clue fades once its line matches.</li></ul>
+      <p>Every puzzle can be solved by logic alone, one line at a time.</p>`);
+    PZ.header(GAME, { onHelp: help });
+
+    // ---------- clues & line solver ----------
+    const runs = (line) => {
+      const out = []; let n = 0;
+      for (const v of line) { if (v === 1) n++; else if (n) { out.push(n); n = 0; } }
+      if (n) out.push(n);
+      return out;
+    };
+    // line: -1 unknown, 0 empty, 1 filled. Returns the line with every forced cell set, or null on contradiction.
+    function solveLine(line, clue) {
+      const n = line.length, k = clue.length, memo = new Map();
+      const canEmpty = Array(n).fill(false), canFill = Array(n).fill(false);
+      const blockFits = (pos, len) => pos + len <= n && !line.slice(pos, pos + len).includes(0) && (pos + len === n || line[pos + len] !== 1);
+      function ok(pos, j) {
+        const key = pos * (k + 1) + j;
+        if (memo.has(key)) return memo.get(key);
+        let r;
+        if (j === k) r = !line.slice(pos).includes(1);
+        else {
+          r = (pos < n && line[pos] !== 1 && ok(pos + 1, j)) ||
+              (blockFits(pos, clue[j]) && ok(Math.min(n, pos + clue[j] + 1), j + 1));
+        }
+        memo.set(key, r);
+        return r;
+      }
+      if (!ok(0, 0)) return null;
+      const seen = new Set();
+      (function mark(pos, j) {
+        const key = pos * (k + 1) + j;
+        if (seen.has(key)) return;
+        seen.add(key);
+        if (j === k) { for (let i = pos; i < n; i++) canEmpty[i] = true; return; }
+        if (pos < n && line[pos] !== 1 && ok(pos + 1, j)) { canEmpty[pos] = true; mark(pos + 1, j); }
+        const end = pos + clue[j];
+        if (blockFits(pos, clue[j]) && ok(Math.min(n, end + 1), j + 1)) {
+          for (let i = pos; i < end; i++) canFill[i] = true;
+          if (end < n) canEmpty[end] = true;
+          mark(Math.min(n, end + 1), j + 1);
+        }
+      })(0, 0);
+      return line.map((v, i) => (canFill[i] && !canEmpty[i] ? 1 : canEmpty[i] && !canFill[i] ? 0 : v));
+    }
+    function lineSolvable(rowClues, colClues, n) {
+      const g = Array(n * n).fill(-1);
+      for (let changed = true; changed;) {
+        changed = false;
+        for (let r = 0; r < n; r++) {
+          const line = g.slice(r * n, r * n + n), out = solveLine(line, rowClues[r]);
+          if (!out) return false;
+          out.forEach((v, c) => { if (v !== line[c]) { g[r * n + c] = v; changed = true; } });
+        }
+        for (let c = 0; c < n; c++) {
+          const line = [...Array(n)].map((_, r) => g[r * n + c]), out = solveLine(line, colClues[c]);
+          if (!out) return false;
+          out.forEach((v, r) => { if (v !== line[r]) { g[r * n + c] = v; changed = true; } });
+        }
+      }
+      return !g.includes(-1);
+    }
+    const cluesFor = (sol, n) => ({
+      rows: [...Array(n)].map((_, r) => runs(sol.slice(r * n, r * n + n))),
+      cols: [...Array(n)].map((_, c) => runs([...Array(n)].map((_, r) => sol[r * n + c]))),
+    });
+    function generate(rand, n) {
+      for (let attempt = 0; ; attempt++) {
+        const density = 0.55 + rand() * 0.1;
+        const sol = [...Array(n * n)].map(() => (rand() < density ? 1 : 0));
+        const { rows, cols } = cluesFor(sol, n);
+        if (lineSolvable(rows, cols, n)) return { sol, rows, cols };
+      }
+    }
+
+    // ---------- state & UI ----------
+    const today = PZ.todayKey();
+    const gridEl = document.getElementById('grid');
+    const timer = PZ.stopwatch(document.getElementById('timer'));
+    let n, sol, rows, cols, cells, cellEls, rowEls, colEls, history, tool = 1, over = false, drag = null;
+
+    function persist() {
+      if (!PZ.isPractice && !over) PZ.saveDailyState(GAME, today, { cells, elapsed: timer.seconds });
+    }
+
+    function build() {
+      const longestRow = Math.max(...rows.map((r) => r.length || 1));
+      const avail = Math.min(window.innerWidth, 640) - 32;
+      const cs = Math.max(16, Math.min(34, Math.floor(avail / (n + longestRow * 0.6 + 0.5))));
+      gridEl.style.setProperty('--cs', `${cs}px`);
+      gridEl.style.gridTemplateColumns = `auto repeat(${n}, var(--cs))`;
+      gridEl.replaceChildren(PZ.el('div'));
+      colEls = cols.map((cl) => PZ.el('div', { class: 'clue-col' }, (cl.length ? cl : [0]).map((v) => PZ.el('span', {}, String(v)))));
+      gridEl.append(...colEls);
+      rowEls = []; cellEls = [];
+      for (let r = 0; r < n; r++) {
+        const rc = PZ.el('div', { class: 'clue-row' }, (rows[r].length ? rows[r] : [0]).map((v) => PZ.el('span', {}, String(v))));
+        rowEls.push(rc);
+        gridEl.append(rc);
+        for (let c = 0; c < n; c++) {
+          const i = r * n + c;
+          const cls = ['nc', c % 5 === 4 && c < n - 1 ? 'c5' : '', r % 5 === 4 && r < n - 1 ? 'r5' : '', c === 0 ? 'c0' : '', r === 0 ? 'r0' : ''].join(' ');
+          const cell = PZ.el('div', { class: cls, 'data-i': i });
+          cellEls.push(cell);
+          gridEl.append(cell);
+        }
+      }
+    }
+
+    function render(hover = -1) {
+      const hr = hover >= 0 ? Math.floor(hover / n) : -1, hc = hover >= 0 ? hover % n : -1;
+      cellEls.forEach((el, i) => {
+        el.classList.toggle('fill', cells[i] === 1);
+        el.classList.toggle('x', cells[i] === 2);
+        el.classList.toggle('hl', Math.floor(i / n) === hr || i % n === hc);
+      });
+      const same = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
+      const filled = cells.map((v) => (v === 1 ? 1 : 0));
+      rowEls.forEach((el, r) => el.classList.toggle('ok', same(runs(filled.slice(r * n, r * n + n)), rows[r])));
+      colEls.forEach((el, c) => el.classList.toggle('ok', same(runs([...Array(n)].map((_, r) => filled[r * n + c])), cols[c])));
+      document.getElementById('fillBtn').classList.toggle('on', tool === 1);
+      document.getElementById('xBtn').classList.toggle('on', tool === 2);
+    }
+
+    function apply(i) {
+      if (cells[i] === drag.value) return;
+      drag.changes.push({ i, v: cells[i] });
+      cells[i] = drag.value;
+      render(i);
+    }
+    const cellAt = (e) => {
+      const t = document.elementFromPoint(e.clientX, e.clientY);
+      return t && t.classList.contains('nc') ? Number(t.dataset.i) : -1;
+    };
+    gridEl.addEventListener('contextmenu', (e) => e.preventDefault());
+    gridEl.addEventListener('pointerdown', (e) => {
+      const i = cellAt(e);
+      if (over || i < 0) return;
+      e.preventDefault();
+      const t = e.button === 2 ? 2 : tool;
+      // The first cell decides whether this drag paints or erases.
+      drag = { value: cells[i] === t ? 0 : t, changes: [], origin: i, axis: null };
+      timer.start();
+      apply(i);
+    });
+    // Drags lock to the row or column they start along and paint the whole span,
+    // so fast swipes never skip cells.
+    window.addEventListener('pointermove', (e) => {
+      const i = cellAt(e);
+      if (!drag) { if (!over) render(i); return; }
+      if (i < 0 || i === drag.origin) return;
+      const r0 = Math.floor(drag.origin / n), c0 = drag.origin % n, r = Math.floor(i / n), c = i % n;
+      drag.axis ??= Math.abs(c - c0) >= Math.abs(r - r0) ? 'row' : 'col';
+      const span = drag.axis === 'row' ? [...Array(Math.abs(c - c0) + 1)].map((_, k) => r0 * n + Math.min(c, c0) + k)
+                                       : [...Array(Math.abs(r - r0) + 1)].map((_, k) => (Math.min(r, r0) + k) * n + c0);
+      span.forEach(apply);
+    });
+    window.addEventListener('pointerup', () => {
+      if (!drag) return;
+      if (drag.changes.length) history.push(drag.changes);
+      drag = null;
+      persist();
+      checkWin();
+    });
+
+    function checkWin() {
+      if (cells.every((v, i) => (v === 1) === (sol[i] === 1))) {
+        cells = cells.map((v) => (v === 1 ? 1 : 0));
+        finish(true);
+      }
+    }
+    function finish(fresh) {
+      over = true;
+      timer.stop();
+      render();
+      if (!PZ.isPractice && fresh) PZ.recordDaily(GAME, today, true, timer.seconds);
+      if (!PZ.isPractice) PZ.saveDailyState(GAME, today, { cells, elapsed: timer.seconds, done: true });
+      document.getElementById('after').replaceChildren(PZ.el('span', { class: 'done-banner' }, `Solved in ${PZ.formatTime(timer.seconds)}`));
+      if (fresh && !PZ.isPractice) setTimeout(() => PZ.showModal('Solved!', PZ.statsPanel(GAME)), 300);
+    }
+
+    document.getElementById('fillBtn').onclick = () => { tool = 1; render(); };
+    document.getElementById('xBtn').onclick = () => { tool = 2; render(); };
+    document.getElementById('undoBtn').onclick = () => {
+      const changes = history.pop();
+      if (!changes || over) return;
+      for (const { i, v } of changes.reverse()) cells[i] = v;
+      render(); persist();
+    };
+    document.getElementById('clearBtn').onclick = () => {
+      if (over || !cells.some(Boolean)) return;
+      history.push(cells.map((v, i) => ({ i, v })));
+      cells = cells.map(() => 0);
+      render(); persist();
+    };
+
+    function start(gen, size, saved) {
+      n = size;
+      ({ sol, rows, cols } = gen);
+      cells = saved?.cells || Array(n * n).fill(0);
+      history = []; over = false;
+      timer.set(saved?.elapsed || 0);
+      document.getElementById('after').replaceChildren();
+      build();
+      render();
+    }
+
+    if (PZ.isPractice) {
+      document.getElementById('sub').textContent = 'Practice: endless puzzles, no effect on stats';
+      const size = document.getElementById('size'), btn = document.getElementById('newBtn');
+      size.hidden = btn.hidden = false;
+      size.value = PZ.load('nonogram:size', '10');
+      const fresh = () => { PZ.save('nonogram:size', size.value); start(generate(PZ.rng(Math.random() * 2 ** 32), +size.value), +size.value); };
+      btn.onclick = fresh;
+      size.onchange = fresh;
+      fresh();
+    } else {
+      document.getElementById('sub').textContent = `Daily · 10×10 · ${PZ.prettyDate(today)}`;
+      const saved = PZ.dailyState(GAME, today);
+      start(generate(PZ.rng(PZ.hash(`${GAME}-${today}`)), 10), 10, saved);
+      if (saved?.done) finish(false);
+      else if (!PZ.getStats(GAME).played && !saved) help();
+    }
+    window.addEventListener('pagehide', persist);
+  </script>
+</body>
+</html>

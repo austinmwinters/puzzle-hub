@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Minesweeper · Puzzle Hub</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    .mgrid { display: grid; user-select: none; -webkit-user-select: none; touch-action: manipulation; border: 2px solid var(--border); --cs: 28px; }
+    .mc { width: var(--cs); height: var(--cs); display: grid; place-items: center; font-weight: 800; font-size: calc(var(--cs) * .58); cursor: pointer;
+          background: var(--surface-2); border: 1px solid var(--surface); box-shadow: inset -2px -2px 0 rgba(0,0,0,.08); -webkit-touch-callout: none; }
+    .mc.open { background: var(--surface); border-color: var(--surface-2); box-shadow: none; cursor: default; }
+    .mc.flag::after { content: '⚑'; color: var(--danger); }
+    .mc.mine::after { content: '●'; color: var(--text); }
+    .mc.boom { background: var(--danger); }
+    .mc.wrong::after { content: '✕'; color: var(--danger); }
+    .n1 { color: #2f6fd0; } .n2 { color: #2f8a3a; } .n3 { color: #c63a2b; } .n4 { color: #5b3db0; }
+    .n5 { color: #93491f; } .n6 { color: #1f8a8a; } .n7 { color: var(--text); } .n8 { color: var(--muted); }
+    @media (prefers-color-scheme: dark) { .n1 { color: #7fb0ff; } .n2 { color: #7fd08a; } .n3 { color: #ff8a7a; } .n4 { color: #b9a2ff; } .n5 { color: #e0a070; } .n6 { color: #6fd6d6; } }
+    .counter { font-variant-numeric: tabular-nums; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <main class="game">
+    <p class="subline" id="sub"></p>
+    <div class="toolbar">
+      <span class="counter" id="mines"></span>
+      <span class="timer" id="timer">0:00</span>
+      <select class="btn" id="diff" hidden aria-label="Difficulty">
+        <option value="easy">Easy 9×9</option><option value="medium" selected>Medium 16×16</option><option value="hard">Hard 20×20</option>
+      </select>
+      <button class="btn" id="newBtn" hidden>New board</button>
+    </div>
+    <div class="mgrid" id="grid"></div>
+    <div class="toolbar">
+      <button class="btn" id="flagBtn">⚑ Flag mode: off</button>
+    </div>
+    <div class="toolbar" id="after"></div>
+  </main>
+  <script src="../js/common.js"></script>
+  <script>
+    const GAME = 'minesweeper';
+    const LEVELS = { easy: [9, 9, 10], medium: [16, 16, 40], hard: [20, 20, 80] };
+    const help = () => PZ.showModal('How to play', `
+      <p>Open every square that isn't a mine. Each number shows how many of the eight surrounding squares hold mines.</p>
+      <ul><li><b>Click</b> to open. <b>Right-click</b>, <b>long-press</b> or use <b>Flag mode</b> to flag a mine.</li>
+      <li>Click a number whose flags are all placed to open its other neighbours.</li></ul>
+      <p>Every board can be solved by logic alone, with no 50/50 guesses. Daily boards start with an opening already revealed.</p>`);
+    PZ.header(GAME, { onHelp: help });
+
+    // ---------- board generation (guaranteed no-guess) ----------
+    function neighbourTable(W, H) {
+      return [...Array(W * H)].map((_, i) => {
+        const x = i % W, y = Math.floor(i / W), out = [];
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx, ny = y + dy;
+          if ((dx || dy) && nx >= 0 && ny >= 0 && nx < W && ny < H) out.push(ny * W + nx);
+        }
+        return out;
+      });
+    }
+
+    // Plays the board using only sure deductions; true if it clears every safe square.
+    function solvable(mines, counts, nb, start, M) {
+      const N = mines.length, st = new Uint8Array(N); // 0 unknown, 1 open, 2 flagged
+      let opened = 0, flagged = 0;
+      const open = (i) => {
+        const stack = [i];
+        while (stack.length) {
+          const j = stack.pop();
+          if (st[j]) continue;
+          st[j] = 1; opened++;
+          if (!counts[j]) for (const k of nb[j]) if (!st[k]) stack.push(k);
+        }
+      };
+      const flag = (i) => { if (!st[i]) { st[i] = 2; flagged++; } };
+      open(start);
+      for (let progress = true; progress && opened < N - M;) {
+        progress = false;
+        const cons = new Map();
+        for (let i = 0; i < N; i++) {
+          if (st[i] !== 1 || !counts[i]) continue;
+          const unk = nb[i].filter((k) => !st[k]);
+          if (!unk.length) continue;
+          cons.set(i, { cells: unk, need: counts[i] - nb[i].filter((k) => st[k] === 2).length });
+        }
+        for (const c of cons.values()) {
+          if (c.need === 0) { c.cells.forEach(open); progress = true; }
+          else if (c.need === c.cells.length) { c.cells.forEach(flag); progress = true; }
+        }
+        if (progress) continue;
+        // Subset rule between nearby constraints.
+        outer: for (const [ai, a] of cons) {
+          const near = new Set();
+          for (const u of a.cells) for (const v of nb[u]) if (v !== ai && cons.has(v)) near.add(v);
+          for (const bi of near) {
+            const b = cons.get(bi);
+            if (!a.cells.every((x) => b.cells.includes(x))) continue;
+            const rest = b.cells.filter((x) => !a.cells.includes(x)), diff = b.need - a.need;
+            if (!rest.length) continue;
+            if (diff === 0) { rest.forEach(open); progress = true; break outer; }
+            if (diff === rest.length) { rest.forEach(flag); progress = true; break outer; }
+          }
+        }
+        if (progress) continue;
+        const unknown = [...st.keys()].filter((i) => !st[i]);
+        if (M - flagged === 0) { unknown.forEach(open); progress = true; }
+        else if (M - flagged === unknown.length) { unknown.forEach(flag); progress = true; }
+      }
+      return opened === N - M;
+    }
+
+    function generate(rand, W, H, M, start) {
+      const nb = neighbourTable(W, H), N = W * H;
+      const banned = new Set([start, ...nb[start]]);
+      const allowed = [...Array(N).keys()].filter((i) => !banned.has(i));
+      let mines, counts;
+      for (let attempt = 0; attempt < 3000; attempt++) {
+        mines = new Uint8Array(N);
+        for (const i of rand.shuffle(allowed.slice()).slice(0, M)) mines[i] = 1;
+        counts = [...Array(N)].map((_, i) => nb[i].reduce((s, k) => s + mines[k], 0));
+        if (solvable(mines, counts, nb, start, M)) break;
+      }
+      return { mines: [...mines], counts, nb };
+    }
+
+    // ---------- state & UI ----------
+    const today = PZ.todayKey();
+    const gridEl = document.getElementById('grid');
+    const timer = PZ.stopwatch(document.getElementById('timer'));
+    let W, H, M, board, st, cellEls, start = -1, status = 'ready', flagMode = false, boom = -1, level;
+
+    function persist() {
+      if (!PZ.isPractice && status === 'playing') PZ.saveDailyState(GAME, today, { st: [...st], elapsed: timer.seconds });
+    }
+
+    function build() {
+      const cs = Math.max(18, Math.min(32, Math.floor((Math.min(window.innerWidth, 700) - 36) / W)));
+      gridEl.style.setProperty('--cs', `${cs}px`);
+      gridEl.style.gridTemplateColumns = `repeat(${W}, var(--cs))`;
+      cellEls = [...Array(W * H)].map((_, i) => PZ.el('div', { class: 'mc', 'data-i': i }));
+      gridEl.replaceChildren(...cellEls);
+    }
+
+    function render() {
+      cellEls.forEach((el, i) => {
+        const s = st[i], showMine = status === 'lost' && board?.mines[i];
+        let cls = 'mc';
+        el.textContent = '';
+        if (s === 1) {
+          cls += ' open';
+          const n = board.counts[i];
+          if (n) { el.textContent = n; cls += ` n${n}`; }
+        } else if (s === 2) cls += status === 'lost' && !board.mines[i] ? ' wrong' : ' flag';
+        else if (showMine) cls += ' mine open';
+        if (i === boom) cls += ' boom';
+        el.className = cls;
+      });
+      document.getElementById('mines').textContent = `⚑ ${M - st.filter((s) => s === 2).length}`;
+      document.getElementById('flagBtn').textContent = `⚑ Flag mode: ${flagMode ? 'on' : 'off'}`;
+      document.getElementById('flagBtn').classList.toggle('on', flagMode);
+    }
+
+    function openCell(i) {
+      if (st[i] !== 0) return;
+      if (board.mines[i]) { boom = i; return lose(); }
+      const stack = [i];
+      while (stack.length) {
+        const j = stack.pop();
+        if (st[j] !== 0) continue;
+        st[j] = 1;
+        if (!board.counts[j]) for (const k of board.nb[j]) if (st[k] === 0) stack.push(k);
+      }
+    }
+
+    function act(i, wantFlag) {
+      if (status === 'won' || status === 'lost') return;
+      if (status === 'ready') {
+        if (wantFlag) return;
+        // Practice boards are generated around the first click so it is always an opening.
+        start = i;
+        board = generate(PZ.rng(Math.random() * 2 ** 32), W, H, M, start);
+        status = 'playing';
+      }
+      timer.start();
+      if (st[i] === 1) {
+        // Chord: open all unflagged neighbours once the flags match the number.
+        const nbs = board.nb[i];
+        if (board.counts[i] && nbs.filter((k) => st[k] === 2).length === board.counts[i]) nbs.forEach((k) => status === 'playing' && openCell(k));
+      } else if (wantFlag) st[i] = st[i] === 2 ? 0 : 2;
+      else if (st[i] === 0) openCell(i);
+      if (status === 'playing' && st.filter((s) => s === 1).length === W * H - M) win();
+      render();
+      persist();
+    }
+
+    function lose() {
+      status = 'lost';
+      timer.stop();
+      if (!PZ.isPractice) {
+        PZ.recordDaily(GAME, today, false, null);
+        PZ.saveDailyState(GAME, today, { st: [...st], elapsed: timer.seconds, boom, done: 'lost' });
+      }
+      showEnd(true);
+    }
+    function win() {
+      status = 'won';
+      timer.stop();
+      st = st.map((s, i) => (board.mines[i] ? 2 : s));
+      if (!PZ.isPractice) {
+        PZ.recordDaily(GAME, today, true, timer.seconds);
+        PZ.saveDailyState(GAME, today, { st: [...st], elapsed: timer.seconds, done: 'won' });
+      }
+      showEnd(true);
+    }
+    function showEnd(fresh) {
+      const won = status === 'won';
+      document.getElementById('after').replaceChildren(
+        PZ.el('span', { class: `done-banner${won ? '' : ' lost'}` }, won ? `Cleared in ${PZ.formatTime(timer.seconds)}` : PZ.isPractice ? 'Boom! Try another board.' : 'Boom. Better luck tomorrow.'),
+        PZ.isPractice ? PZ.el('button', { class: 'btn primary', onclick: fresh0 }, 'New board') : '');
+      if (fresh && !PZ.isPractice) setTimeout(() => PZ.showModal(won ? 'Cleared!' : 'Hit a mine', PZ.statsPanel(GAME)), 500);
+    }
+
+    // Input: click opens, right-click or long-press flags, flag mode swaps them.
+    let pressTimer = null, longPressed = false;
+    const idx = (e) => { const t = e.target.closest('.mc'); return t ? Number(t.dataset.i) : -1; };
+    gridEl.addEventListener('contextmenu', (e) => { e.preventDefault(); const i = idx(e); if (i >= 0 && e.pointerType !== 'touch' && !longPressed) act(i, true); });
+    gridEl.addEventListener('pointerdown', (e) => {
+      longPressed = false;
+      if (e.pointerType !== 'touch') return;
+      const i = idx(e);
+      pressTimer = setTimeout(() => { longPressed = true; act(i, !flagMode); navigator.vibrate?.(20); }, 380);
+    });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach((t) => gridEl.addEventListener(t, () => clearTimeout(pressTimer)));
+    gridEl.addEventListener('click', (e) => {
+      const i = idx(e);
+      if (i < 0 || longPressed) return;
+      act(i, flagMode);
+    });
+    document.getElementById('flagBtn').onclick = () => { flagMode = !flagMode; render(); };
+
+    function setup(lv, saved) {
+      level = lv;
+      [W, H, M] = LEVELS[lv];
+      st = saved?.st || Array(W * H).fill(0);
+      status = 'ready'; boom = saved?.boom ?? -1; flagMode = false;
+      timer.set(saved?.elapsed || 0);
+      document.getElementById('after').replaceChildren();
+      build();
+    }
+    function fresh0() {
+      const diff = document.getElementById('diff');
+      PZ.save('mines:diff', diff.value);
+      setup(diff.value);
+      start = -1; board = null;
+      render();
+    }
+
+    if (PZ.isPractice) {
+      document.getElementById('sub').textContent = 'Practice: your first click is always safe. No effect on stats.';
+      const diff = document.getElementById('diff'), btn = document.getElementById('newBtn');
+      diff.hidden = btn.hidden = false;
+      diff.value = PZ.load('mines:diff', 'medium');
+      btn.onclick = fresh0;
+      diff.onchange = fresh0;
+      fresh0();
+    } else {
+      document.getElementById('sub').textContent = `Daily · Medium · ${PZ.prettyDate(today)}`;
+      const saved = PZ.dailyState(GAME, today);
+      setup('medium', saved);
+      const rand = PZ.rng(PZ.hash(`${GAME}-${today}`));
+      start = rand.int(W * H);
+      board = generate(rand, W, H, M, start);
+      status = saved?.done || 'playing';
+      if (!saved) openCell(start);
+      render();
+      if (saved?.done) showEnd(false);
+      else if (!PZ.getStats(GAME).played && !saved) help();
+    }
+    window.addEventListener('pagehide', persist);
+  </script>
+</body>
+</html>
