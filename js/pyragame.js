@@ -31,7 +31,7 @@
     const today = PZ.todayKey();
     const timer = PZ.stopwatch(ui.timer);
     let P, order, ops, verdict, guesses, marks, swaps, over, sel = null, lastChecked = '';
-    let nodeEls = new Map(), opEls = new Map(), pos = [], opPos = [];
+    let nodeEls = new Map(), opEls = new Map(), pos = [], opPos = [], drawn = '', fadeTimer;
 
     // ---------- layout ----------
     function layout() {
@@ -84,7 +84,7 @@
         const el = nodeEls.get(id);
         if (!el.classList.contains('drag')) { el.style.left = `${pos[i].x}px`; el.style.top = `${pos[i].y}px`; }
         el.style.width = `${pos[i].w}px`;
-        el.classList.toggle('sel', sel?.kind === 'node' && sel.i === i);
+        el.classList.toggle('sel', sel?.kind === 'node' && sel.group.includes(i));
         el.classList.toggle('locked', over || locked.has(i));
         el.classList.toggle('root', i === 0);
         el.dataset.i = i;
@@ -104,6 +104,14 @@
         const cls = over || verdict[key] === true ? 'good' : verdict[key] === false ? 'bad' : marks.has(mark) ? 'marked' : '';
         paths.push(`<path class="link ${cls}" d="${d}"/><path class="hit" data-mark="${mark}" data-i="${i}" d="${d}"/>`);
       }
+      // Lines snap to their new places, so hide them while the pieces slide over.
+      const now = order.join(',');
+      if (drawn && now !== drawn) {
+        svg.classList.add('moving');
+        clearTimeout(fadeTimer);
+        fadeTimer = setTimeout(() => svg.classList.remove('moving'), 330);
+      }
+      drawn = now;
       svg.innerHTML = paths.join('');
       ui.dots.replaceChildren(...[...Array(MAX)].map((_, k) => PZ.el('span', { class: `dot${k < guesses.length ? ' spent' : ''}` })));
       ui.swaps.textContent = `${swaps} swap${swaps === 1 ? '' : 's'}`;
@@ -125,20 +133,70 @@
       timer.start();
       persist();
     }
+    // ---------- groups ----------
+    // Gold-marked and confirmed-green links tie their pieces into a group that moves as one.
+    const bonded = (i) => marks.has(pairKey(order[i], order[parentOf(i)])) || verdict[judge(i).key] === true;
+    function groupOf(i) {
+      let top = i;
+      while (top > 0 && bonded(top)) top = parentOf(top);
+      const members = [], stack = [top];
+      while (stack.length) {
+        const x = stack.pop();
+        members.push(x);
+        for (const c of [2 * x + 1, 2 * x + 2]) if (c < SIZE && bonded(c)) stack.push(c);
+      }
+      return { top, members };
+    }
+    // Left/right steps from `top` down to `x`, and the position those steps reach from `start`.
+    const pathFrom = (top, x) => { const steps = []; for (; x !== top; x = parentOf(x)) steps.unshift((x - 1) % 2); return steps; };
+    const follow = (start, steps) => steps.reduce((p, b) => 2 * p + 1 + b, start);
+
+    // Moves the group holding `from` so that piece lands on `to`, keeping the group's shape.
+    // Whatever sat in the landing spots takes the places the group left.
+    function moveGroup(from, to) {
+      const { top, members } = groupOf(from);
+      if (members.length === 1) return swap('node', from, to);
+      if (members.includes(to) || over) return;
+      const steps = pathFrom(top, from);
+      let newTop = to;
+      for (let k = 0; k < steps.length; k++) {
+        if (newTop === 0) return PZ.toast('The whole group won’t fit there');
+        newTop = parentOf(newTop);
+      }
+      if (follow(newTop, steps) !== to) return PZ.toast('Drop it on a spot that keeps the group’s shape');
+      const map = new Map(members.map((x) => [x, follow(newTop, pathFrom(top, x))]));
+      if ([...map.values()].some((y) => y >= SIZE)) return PZ.toast('The whole group won’t fit there');
+      const locked = lockedSet();
+      if ([...map.keys(), ...map.values()].some((x) => locked.has(x))) return PZ.toast('That one is locked in');
+      const next = order.slice(), from_ = new Set(members), to_ = new Set(map.values());
+      for (const [x, y] of map) next[y] = order[x];
+      const freed = members.filter((x) => !to_.has(x)).sort((a, b) => a - b);
+      if (freed.length === members.length) {
+        // No overlap: the pieces in the way swap back in the same shape.
+        for (const [x, y] of map) next[x] = order[y];
+      } else {
+        const displaced = [...to_].filter((y) => !from_.has(y)).sort((a, b) => a - b);
+        freed.forEach((x, k) => { next[x] = order[displaced[k]]; });
+      }
+      order = next;
+      swaps++;
+      timer.start();
+      persist();
+    }
+
     function tap(kind, i) {
       if (over) return;
       if (kind === 'node' && lockedSet().has(i)) { sel = null; render(); return PZ.toast('That one is locked in'); }
-      if (!sel) sel = { kind, i };
-      else if (sel.kind === kind && sel.i === i) sel = null;
-      else if (sel.kind !== kind) sel = { kind, i };
-      else { swap(kind, sel.i, i); sel = null; }
+      if (!sel || sel.kind !== kind) sel = { kind, i, group: kind === 'node' ? groupOf(i).members : [i] };
+      else if (sel.group.includes(i)) sel = null;
+      else { kind === 'node' ? moveGroup(sel.i, i) : swap(kind, sel.i, i); sel = null; }
       render();
     }
 
     let drag = null;
     const kindOf = (el) => (el.classList.contains('pop') ? 'op' : 'node');
-    const pieceAt = (x, y, skip) => document.elementsFromPoint(x, y)
-      .find((e) => e !== skip && (e.classList?.contains('pnode') || e.classList?.contains('pop')) && kindOf(e) === kindOf(skip));
+    const pieceAt = (x, y, d) => document.elementsFromPoint(x, y)
+      .find((e) => !d.els.includes(e) && (e.classList?.contains('pnode') || e.classList?.contains('pop')) && kindOf(e) === d.kind);
     ui.stage.addEventListener('pointerdown', (e) => {
       const el = e.target.closest('.pnode, .pop');
       if (!el || over) return;
@@ -148,14 +206,18 @@
       if (!drag) return;
       if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 8) return;
       if (!drag.moved) {
-        if (drag.kind === 'node' && lockedSet().has(drag.i)) { drag = null; return PZ.toast('That one is locked in'); }
+        const members = drag.kind === 'node' ? groupOf(drag.i).members : [drag.i];
+        const locked = lockedSet();
+        if (drag.kind === 'node' && members.some((x) => locked.has(x))) { drag = null; return PZ.toast('That one is locked in'); }
         drag.moved = true;
-        drag.el.classList.add('drag');
+        // The whole group follows the pointer, each piece keeping its offset.
+        drag.els = members.map((x) => (drag.kind === 'node' ? nodeEls.get(order[x]) : opEls.get(ops[x])));
+        drag.base = drag.els.map((el) => [parseFloat(el.style.left), parseFloat(el.style.top)]);
+        drag.els.forEach((el) => el.classList.add('drag'));
       }
-      const r = ui.stage.getBoundingClientRect();
-      drag.el.style.left = `${e.clientX - r.left}px`;
-      drag.el.style.top = `${e.clientY - r.top}px`;
-      const t = pieceAt(e.clientX, e.clientY, drag.el);
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      drag.els.forEach((el, k) => { el.style.left = `${drag.base[k][0] + dx}px`; el.style.top = `${drag.base[k][1] + dy}px`; });
+      const t = pieceAt(e.clientX, e.clientY, drag);
       if (drag.target !== t) { drag.target?.classList.remove('target'); drag.target = t; t?.classList.add('target'); }
     });
     window.addEventListener('pointerup', () => {
@@ -163,9 +225,9 @@
       const d = drag;
       drag = null;
       d.target?.classList.remove('target');
-      d.el.classList.remove('drag');
       if (!d.moved) return tap(d.kind, d.i);
-      if (d.target) swap(d.kind, d.i, +d.target.dataset.i);
+      d.els.forEach((el) => el.classList.remove('drag'));
+      if (d.target) d.kind === 'node' ? moveGroup(d.i, +d.target.dataset.i) : swap(d.kind, d.i, +d.target.dataset.i);
       sel = null;
       render();
     });
@@ -236,6 +298,7 @@
       nodeEls = new Map(P.solution.map((id) => [id, PZ.el('div', { class: `pnode${cfg.big ? ' big' : ''}` }, P.labels[id] ?? id)]));
       opEls = new Map((P.solOps || []).map((id) => [id, PZ.el('div', { class: 'pop' }, P.opLabels[id])]));
       ui.stage.append(...nodeEls.values(), ...opEls.values());
+      drawn = '';
       layout();
     }
     function freshPuzzle() { start(Math.random() * 2 ** 32); }
@@ -258,6 +321,8 @@
     window.pyra = {
       get puzzle() { return P; }, get order() { return order; }, get ops() { return ops; }, get over() { return over; },
       set(o, p) { order = o.slice(); if (p) ops = p.slice(); render(); },
+      mark(i) { marks.add(pairKey(order[i], order[parentOf(i)])); render(); },
+      move(from, to) { moveGroup(from, to); render(); }, group: (i) => groupOf(i).members,
       swap(kind, i, j) { swap(kind, i, j); render(); }, tap, locked: () => [...lockedSet()],
     };
   };
