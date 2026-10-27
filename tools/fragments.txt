@@ -1,0 +1,48 @@
+# Words split into two fragments for Pyraphemes, written as first+second.
+# Run tools/build_fragments.py after editing.
+re+act re+form re+pay re+port re+set re+call re+lay re+new re+cord re+cover re+lease re+treat re+fuse re+sign
+re+mote re+tail re+ward re+side re+take re+play re+fine re+pose re+sent re+fit re+cap re+gain re+mark re+turn
+re+bound re+store re+tire re+wind re+fill
+un+do un+fair un+kind un+lock un+wind un+fold un+tie un+less un+rest un+seen un+well un+load un+pack un+done
+un+safe un+able un+cover un+bound un+like un+told un+sure un+ion un+fit
+in+form in+side in+put in+come in+let in+sight in+vest in+land in+tend in+tent in+vent in+take in+ward in+sure in+born
+en+act en+compass en+able en+dear en+force en+list en+rich en+trap en+title en+roll en+camp en+fold en+joy en+rage
+en+large en+sure en+tail en+sign en+trust en+gage
+wood+en maid+en ward+en war+den gold+en of+ten list+en beat+en eat+en
+de+form de+frost de+tail de+fine de+part de+port de+tour de+code de+face de+lay de+sign de+test de+vote de+camp
+de+bug de+fuse de+pose de+mote de+crease
+pro+fit pro+test pro+gram pro+ton pro+long pro+pose pro+file pro+mote pro+noun
+con+test con+vent con+tend con+tent con+tour con+fine con+form con+tract con+cord con+done con+fuse con+sent con+duct con+sign
+com+bat com+pass com+pact com+ment com+pose com+pile com+fort com+pound com+plain
+for+mat for+get for+bid for+go for+sake for+tune for+ward for+age for+tress
+car+pet car+ton car+go car+rot car+pool
+dis+cover dis+cord dis+miss dis+trust dis+may dis+play dis+patch dis+count dis+arm dis+like dis+own dis+card dis+band
+im+port im+part im+pose im+pact im+plant im+press im+prove im+pound
+ex+port ex+pose ex+tent ex+tend ex+act ex+tract ex+claim
+pre+tend pre+fix pre+view pre+pay pre+set pre+vent pre+sent pre+text pre+date pre+heat
+mis+take mis+lead mis+place mis+use mis+print mis+fit
+be+side be+come be+fore be+hold be+long be+tray be+have be+fit be+ware be+came may+be
+out+law out+let out+put out+run out+fit out+do out+come out+side out+post out+set out+wit out+grow out+take out+ing
+out+rage out+ward with+out lay+out work+out take+out look+out black+out
+over+come over+do over+lap over+run over+lay over+take hang+over take+over left+over more+over
+up+side up+take up+set up+ward up+hold up+date up+keep up+load par+take
+act+ion un+ion on+ion mill+ion bill+ion miss+ion pass+ion champ+ion stall+ion mans+ion min+ion lot+ion port+ion
+farm+er play+er sing+er teach+er work+er read+er keep+er own+er hunt+er paint+er print+er corn+er tow+er flow+er
+show+er tend+er bank+er
+read+ing meet+ing paint+ing feel+ing morn+ing even+ing bless+ing cloth+ing offer+ing land+ing park+ing dress+ing build+ing
+pay+ment ship+ment agree+ment gar+ment apart+ment base+ment move+ment treat+ment state+ment
+kind+ness dark+ness fit+ness ill+ness wit+ness good+ness weak+ness bold+ness fair+ness well+ness
+care+less use+less home+less end+less help+less harm+less time+less rest+less point+less spot+less wire+less hope+less fear+less
+care+ful use+ful help+ful harm+ful hope+ful fear+ful rest+ful play+ful pain+ful cheer+ful thank+ful mouth+ful hand+ful
+arm+ful joy+ful
+cap+able read+able pay+able do+able not+able port+able break+able wash+able
+pack+age post+age pass+age mess+age dam+age band+age man+age us+age short+age leak+age
+pass+port pass+word port+al port+er form+at form+al uni+form per+form
+tail+or sail+or edit+or visit+or don+or may+or arm+or min+or man+or act+or cur+tail
+mass+ive pass+ive act+ive
+net+work home+work art+work team+work work+shop
+gar+den gar+net cot+ton but+ton pup+pet par+rot rot+ten ten+ant ant+hem may+hem min+us camp+us
+al+arm al+low al+most man+kind man+go cap+size go+al
+tele+gram tele+phone tele+scope kilo+gram micro+phone micro+wave micro+scope micro+chip head+phone ear+phone
+life+long head+long blind+fold joy+stick ward+robe
+pet+al rent+al dent+al met+al tot+al sign+al norm+al

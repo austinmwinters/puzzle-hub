@@ -25,10 +25,29 @@
     return { adj, phrase };
   }
 
+  // Fragment pairs from tools/build_fragments.py. `block` also holds pairs that join into
+  // some other dictionary word, so a pyramid never contains an unintended valid link.
+  function fragmentGraph(data) {
+    const adj = new Map(), block = new Map(), phrase = new Map();
+    const link = (map, a, b) => {
+      for (const [x, y] of [[a, b], [b, a]]) { if (!map.has(x)) map.set(x, new Set()); map.get(x).add(y); }
+    };
+    for (const t of data.good.split(' ')) {
+      const [a, b] = t.split('+');
+      link(adj, a, b); link(block, a, b);
+      if (!phrase.has(pairKey(a, b))) phrase.set(pairKey(a, b), a + b);
+    }
+    for (const t of data.extra.split(' ')) {
+      const [a, b] = t.split('+');
+      if (adj.has(a) && adj.has(b)) link(block, a, b);
+    }
+    return { adj, block, phrase };
+  }
+
   // Fills positions in order with backtracking. Each new word must link to its parent and to
   // no other word already placed, so the finished pyramid has exactly one valid arrangement.
   function generate(graph, rand, budget = 4000) {
-    const { adj } = graph;
+    const { adj } = graph, block = graph.block || adj;
     const words = [...adj.keys()].sort();
     const roots = words.filter((w) => adj.get(w).size >= 2);
     for (let attempt = 0; attempt < 500; attempt++) {
@@ -38,7 +57,7 @@
         if (used.has(w)) return false;
         const p = i ? tree[parentOf(i)] : null;
         if (i < 7 && adj.get(w).size < (i ? 3 : 2)) return false;
-        for (const u of used) if (u !== p && adj.get(w).has(u)) return false;
+        for (const u of used) if (u !== p && block.get(w).has(u)) return false;
         return true;
       };
       const fill = (i) => {
@@ -70,5 +89,5 @@
     return best;
   }
 
-  window.PYR = { SIZE, LINKS, parentOf, depthOf, pairKey, phraseGraph, generate, scramble };
+  window.PYR = { SIZE, LINKS, parentOf, depthOf, pairKey, phraseGraph, fragmentGraph, generate, scramble };
 })();

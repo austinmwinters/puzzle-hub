@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Pyraphemes · Puzzle Hub</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/pyra.css">
+</head>
+<body>
+  <main class="game"></main>
+  <script src="../js/common.js"></script>
+  <script src="../js/fragments.js"></script>
+  <script src="../js/pyramid.js"></script>
+  <script src="../js/pyragame.js"></script>
+  <script>
+    PyraWords({
+      id: 'pyraphemes',
+      graph: PYR.fragmentGraph(window.FRAGMENTS),
+      help: () => PZ.showModal('How to play', `
+        <p>Every piece is a word fragment. Rearrange the pyramid so each linked pair joins into a real word, in either order. <b>en</b> above <b>act</b> makes <i>enact</i>; <b>gar</b> above <b>den</b> makes <i>garden</i>.</p>
+        <ul><li>Drag a fragment onto another to swap them, or tap one and then the other.</li>
+        <li>Tap a line to mark a link you're confident about (it turns gold).</li>
+        <li>Press <b>Check</b> to test your pyramid. Correct links turn <b style="color:var(--correct)">green</b> and wrong ones break apart. Green links joined to the top fragment lock in place.</li>
+        <li>You get 4 checks. Only one arrangement makes every link a word.</li></ul>`),
+    });
+  </script>
+</body>
+</html>

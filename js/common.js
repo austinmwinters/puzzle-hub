@@ -9,12 +9,16 @@
     sudoku: svg('<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/>'),
     nonogram: svg('<rect x="3" y="3" width="5" height="5" rx="1" fill="currentColor"/><rect x="9.5" y="3" width="5" height="5" rx="1"/><rect x="16" y="3" width="5" height="5" rx="1" fill="currentColor"/><rect x="3" y="9.5" width="5" height="5" rx="1"/><rect x="9.5" y="9.5" width="5" height="5" rx="1" fill="currentColor"/><rect x="16" y="9.5" width="5" height="5" rx="1"/><rect x="3" y="16" width="5" height="5" rx="1" fill="currentColor"/><rect x="9.5" y="16" width="5" height="5" rx="1" fill="currentColor"/><rect x="16" y="16" width="5" height="5" rx="1" fill="currentColor"/>'),
     pyragrams: svg('<path d="M12 6.5L6.5 13M12 6.5l5.5 6.5M6.5 13l-3 5M6.5 13l3 5M17.5 13l-3 5M17.5 13l3 5"/><circle cx="12" cy="5" r="2.6" fill="currentColor"/><circle cx="6.5" cy="13" r="2.3" fill="currentColor"/><circle cx="17.5" cy="13" r="2.3" fill="currentColor"/><circle cx="3.5" cy="19.5" r="1.8" fill="currentColor"/><circle cx="9.5" cy="19.5" r="1.8" fill="currentColor"/><circle cx="14.5" cy="19.5" r="1.8" fill="currentColor"/><circle cx="20.5" cy="19.5" r="1.8" fill="currentColor"/>'),
+    pyraphemes: svg('<path d="M12 7.5L7 15M12 7.5L17 15"/><rect x="8.5" y="2.5" width="7" height="6" rx="2" fill="currentColor"/><rect x="2.5" y="14" width="9" height="7" rx="2"/><rect x="12.5" y="14" width="9" height="7" rx="2" fill="currentColor"/>'),
+    pyrithmetic: svg('<path d="M12 7.5L7 13.5M12 7.5l5 6"/><circle cx="12" cy="5" r="2.6" fill="currentColor"/><path d="M4.5 18.5h5M7 16v5"/><path d="M15 16.5l4 4M19 16.5l-4 4"/>'),
     minesweeper: svg('<circle cx="12" cy="13" r="6" fill="currentColor"/><path d="M12 3.5v3M12 19.5v1.5M3.5 13h2M18.5 13h2M6 7l1.5 1.5M18 7l-1.5 1.5"/><circle cx="10" cy="11" r="1.4" fill="#fff" stroke="none"/>'),
   };
   const GAMES = [
     { id: 'wordle', name: 'Wordle', path: 'games/wordle.html', blurb: 'Six tries to find the five-letter word.', kind: 'guesses', color: '#1fb36b' },
     { id: 'betweenle', name: 'Betweenle', path: 'games/betweenle.html', blurb: 'Narrow it down alphabetically in 14 guesses.', kind: 'guesses', color: '#8b5cf6' },
     { id: 'pyragrams', name: 'Pyragrams', path: 'games/pyragrams.html', blurb: 'Arrange the pyramid so every linked pair makes a phrase.', kind: 'guesses', color: '#e0912a' },
+    { id: 'pyraphemes', name: 'Pyraphemes', path: 'games/pyraphemes.html', blurb: 'Join word fragments so every link spells a real word.', kind: 'guesses', color: '#0ea5a4' },
+    { id: 'pyrithmetic', name: 'Pyrithmetic', path: 'games/pyrithmetic.html', blurb: 'Swap numbers and operators until every equation adds up.', kind: 'guesses', color: '#d946ef' },
     { id: 'sudoku', name: 'Sudoku', path: 'games/sudoku.html', blurb: 'Fill the grid so every row, column and box has 1–9.', kind: 'time', color: '#3b82f6' },
     { id: 'nonogram', name: 'Nonogram', path: 'games/nonogram.html', blurb: 'Paint the picture from the row and column clues.', kind: 'time', color: '#f97316' },
     { id: 'minesweeper', name: 'Minesweeper', path: 'games/minesweeper.html', blurb: 'Clear the board — no guessing required.', kind: 'time', color: '#ef4466' },

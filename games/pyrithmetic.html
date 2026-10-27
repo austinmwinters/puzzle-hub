@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Pyrithmetic · Puzzle Hub</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/pyra.css">
+</head>
+<body>
+  <main class="game"></main>
+  <script src="../js/common.js"></script>
+  <script src="../js/pyragame.js"></script>
+  <script>
+    // Each number equals the two numbers below it combined by the operator between them.
+    const OPS = {
+      add: { sym: '+', f: (a, b) => a + b, comm: true },
+      sub: { sym: '−', f: (a, b) => a - b, comm: false },
+      mul: { sym: '×', f: (a, b) => a * b, comm: true },
+    };
+    const fmt = (n) => (n < 0 ? `−${-n}` : String(n));
+
+    // Values by position (0 top, 1-2 middle, 3-6 bottom) and operator types for positions 0-2.
+    function valid(vals, types) {
+      for (let p = 0; p < 3; p++) if (OPS[types[p]].f(vals[2 * p + 1], vals[2 * p + 2]) !== vals[p]) return false;
+      return true;
+    }
+    // Same equations regardless of which side of a + or × each number sits on.
+    function canonical(vals, types) {
+      return [0, 1, 2].map((p) => {
+        let l = vals[2 * p + 1], r = vals[2 * p + 2];
+        if (OPS[types[p]].comm && l > r) [l, r] = [r, l];
+        return `${vals[p]}=${l}${types[p]}${r}`;
+      }).sort().join(';');
+    }
+    function permutations(arr) {
+      if (arr.length <= 1) return [arr];
+      return arr.flatMap((x, i) => permutations([...arr.slice(0, i), ...arr.slice(i + 1)]).map((p) => [x, ...p]));
+    }
+    // True if every arrangement that works is the intended one, up to swapping + and × sides.
+    function unique(vals, types) {
+      const target = canonical(vals, types), opPerms = [...new Set(permutations(types).map((t) => t.join(',')))].map((s) => s.split(','));
+      for (const v of permutations(vals)) for (const t of opPerms) if (valid(v, t) && canonical(v, t) !== target) return false;
+      return true;
+    }
+
+    PyraGame({
+      id: 'pyrithmetic', checks: 3, levels: 3, big: true,
+      help: () => PZ.showModal('How to play', `
+        <p>Every number must equal the two numbers below it, combined by the operator between them, read left to right. <b>16</b> above <b>6 + 10</b> works.</p>
+        <ul><li>Drag a number onto another number to swap them, or an operator onto another operator. Tapping one then another works too.</li>
+        <li>Tap a line to mark a link you're confident about (it turns gold).</li>
+        <li>Press <b>Check</b>: each equation that works turns <b style="color:var(--correct)">green</b>, and wrong ones break apart.</li>
+        <li>You get 3 checks. Watch out for negative numbers and subtraction order.</li></ul>`),
+      create(rand) {
+        for (;;) {
+          const leaves = [...Array(4)].map(() => (rand.int(20) + 1) * (rand() < 0.35 ? -1 : 1));
+          const types = [0, 1, 2].map(() => rand.pick(['add', 'sub', 'mul']));
+          if (new Set(types).size === 1) continue;
+          const vals = [0, 0, 0, ...leaves];
+          for (let p = 2; p >= 0; p--) vals[p] = OPS[types[p]].f(vals[2 * p + 1], vals[2 * p + 2]);
+          if (vals.some((v) => Math.abs(v) > 300) || new Set(vals).size < 7 || !unique(vals, types)) continue;
+          const solution = vals.map((_, i) => `n${i}`), solOps = types.map((_, p) => `o${p}`);
+          const puzzle = {
+            solution, solOps, vals: Object.fromEntries(vals.map((v, i) => [`n${i}`, v])), types: Object.fromEntries(types.map((t, p) => [`o${p}`, t])),
+            labels: Object.fromEntries(vals.map((v, i) => [`n${i}`, fmt(v)])), opLabels: Object.fromEntries(types.map((t, p) => [`o${p}`, OPS[t].sym])),
+          };
+          // Start from a shuffle where no equation already works.
+          let order, ops;
+          for (let t = 0; t < 50; t++) {
+            order = rand.shuffle(solution.slice());
+            ops = rand.shuffle(solOps.slice());
+            const v = order.map((id) => puzzle.vals[id]), ty = ops.map((id) => puzzle.types[id]);
+            if ([0, 1, 2].every((p) => OPS[ty[p]].f(v[2 * p + 1], v[2 * p + 2]) !== v[p])) break;
+          }
+          return { puzzle, order, ops };
+        }
+      },
+      judge(P, order, ops, i) {
+        const p = (i - 1) >> 1, l = 2 * p + 1, r = 2 * p + 2;
+        const key = `${order[p]}|${order[l]}|${ops[p]}|${order[r]}`;
+        return { key, ok: OPS[P.types[ops[p]]].f(P.vals[order[l]], P.vals[order[r]]) === P.vals[order[p]] };
+      },
+      reveal: (P) => [0, 1, 2].map((p) => {
+        const v = (i) => P.vals[P.solution[i]], r = v(2 * p + 2);
+        return `${fmt(v(2 * p + 1))} ${P.opLabels[P.solOps[p]]} ${r < 0 ? `(${fmt(r)})` : fmt(r)} = ${fmt(v(p))}`;
+      }),
+    });
+  </script>
+</body>
+</html>

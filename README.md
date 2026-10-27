@@ -9,6 +9,8 @@ Daily puzzles with no ads, accounts, trackers, or network calls. Everything runs
 | Wordle | Same word for everyone each day | Unlimited random words |
 | Betweenle | Same word each day, 14 guesses | Unlimited |
 | Pyragrams | 15-word pyramid, 4 checks, one valid arrangement | Unlimited |
+| Pyraphemes | 15 word fragments, 4 checks, one valid arrangement | Unlimited |
+| Pyrithmetic | 7 numbers + 3 operators, 3 checks, one solution | Unlimited |
 | Sudoku | Medium, unique solution | Easy / Medium / Hard |
 | Nonogram | 10×10, solvable line by line | 5×5 / 10×10 / 15×15 |
 | Minesweeper | 16×16, 40 mines, no guessing needed | Easy / Medium / Hard, first click safe |
@@ -22,11 +24,15 @@ index.html          hub: today's progress and streaks
 css/style.css       shared styles (light + dark)
 js/common.js        dates, seeded RNG, storage, stats, header, modals
 js/wordgame.js      word-game helpers (answer choice, keyboard)
-js/pyramid.js       pyramid-link puzzle generator (used by Pyragrams)
+js/pyramid.js       pyramid-link puzzle generator (Pyragrams, Pyraphemes)
+js/pyragame.js      shared pyramid game engine (layout, swaps, checks, saving)
 js/phrases.js       two-word phrase list for Pyragrams — add lines to grow it
+js/fragments.js     generated fragment pairs — rebuild with tools/build_fragments.py
+css/pyra.css        styles for the pyramid games
 js/words.js         generated word lists — rebuild with tools/build_words.py
 games/*.html        one self-contained page per game
 tools/answers.txt   curated answer words (edit, then rebuild)
+tools/fragments.txt curated word splits for Pyraphemes (edit, then rebuild)
 ```
 
 To add or remove answer words, edit `tools/answers.txt` and run:
