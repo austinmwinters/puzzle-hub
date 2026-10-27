@@ -12,8 +12,11 @@
     return answers[Math.floor(Math.random() * answers.length)];
   }
 
-  const ROWS = ['qwertyuiop', 'asdfghjkl', 'zxcvbnm'];
-  function keyboard(onKey) {
+  const LAYOUTS = { qwerty: ['qwertyuiop', 'asdfghjkl', 'zxcvbnm'], abc: ['abcdefghi', 'jklmnopqr', 'stuvwxyz'] };
+  function keyboard(onKey, layout = 'qwerty') {
+    const ROWS = LAYOUTS[layout];
+    // Indent a shorter middle row, as on a real keyboard.
+    const spacer = () => (ROWS[1].length < ROWS[0].length ? PZ.el('span', { class: 'spacer' }) : null);
     const keys = {};
     const make = (k, label = k, wide = false) => {
       const b = PZ.el('button', { class: `key${wide ? ' wide' : ''}`, 'data-key': k, onclick: () => onKey(k) }, label);
@@ -22,7 +25,7 @@
     };
     const node = PZ.el('div', { class: 'keyboard' },
       PZ.el('div', { class: 'kb-row' }, [...ROWS[0]].map((c) => make(c))),
-      PZ.el('div', { class: 'kb-row' }, PZ.el('span', { class: 'spacer' }), [...ROWS[1]].map((c) => make(c)), PZ.el('span', { class: 'spacer' })),
+      PZ.el('div', { class: 'kb-row' }, spacer(), [...ROWS[1]].map((c) => make(c)), spacer()),
       PZ.el('div', { class: 'kb-row' }, make('enter', 'Enter', true), [...ROWS[2]].map((c) => make(c)), make('back', '⌫', true)));
     document.addEventListener('keydown', (e) => {
       if (e.ctrlKey || e.metaKey || e.altKey || document.querySelector('.modal-backdrop')) return;

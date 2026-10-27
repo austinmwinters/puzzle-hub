@@ -68,7 +68,7 @@
       return [...row.children];
     };
     const lowTiles = tiles('low'), inTiles = tiles('input'), highTiles = tiles('high');
-    const kb = WG.keyboard(onKey);
+    const kb = WG.keyboard(onKey, 'abc');
     document.getElementById('kb').append(kb.node);
 
     function bounds() {
