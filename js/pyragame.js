@@ -283,12 +283,12 @@
       if (fresh && !PZ.isPractice) setTimeout(() => PZ.showModal(won ? 'Pyramid complete!' : 'Out of checks', PZ.statsPanel(GAME)), won ? 1000 : 500);
     }
 
-    function start(seed, saved) {
-      const made = cfg.create(PZ.rng(seed));
+    function start(seed, saved, dailyKey = null) {
+      const made = cfg.create(PZ.rng(seed), { daily: dailyKey });
       P = made.puzzle;
       order = saved?.order || made.order;
       ops = saved?.ops || made.ops || null;
-      verdict = saved?.verdict || {};
+      verdict = cfg.migrate ? cfg.migrate(saved?.verdict || {}, P) : saved?.verdict || {};
       guesses = saved?.guesses || [];
       marks = new Set(saved?.marks || []);
       swaps = saved?.swaps || 0;
@@ -314,7 +314,7 @@
     } else {
       ui.sub.textContent = `Daily · ${PZ.prettyDate(today)}`;
       const saved = PZ.dailyState(GAME, today);
-      start(PZ.hash(`${GAME}-${today}`), saved);
+      start(PZ.hash(`${GAME}-${today}`), saved, today);
       if (saved?.done) finish(saved.done === 'won', false);
       else if (!PZ.getStats(GAME).played && !saved) cfg.help();
     }
@@ -330,21 +330,42 @@
   };
 
   // The word-based games share everything except their link data and wording.
-  window.PyraWords = function ({ id, graph, help }) {
-    const { pairKey, parentOf } = window.PYR;
-    let edges;
+  // A link is correct only when the upper piece is the one that belongs directly above the
+  // lower piece, so an upside-down pair never shows green. With `downward`, puzzles are also
+  // built so every link reads top-first ("card" above "game"); daily puzzles from before
+  // DOWNWARD_FROM keep their original layout so games in progress aren't disturbed.
+  const DOWNWARD_FROM = '2026-10-28';
+  window.PyraWords = function ({ id, graph, help, downward = false }) {
+    const { parentOf } = window.PYR;
+    let above, oneWay;
     window.PyraGame({
       id, checks: 4, levels: 4, lockable: true, help,
-      create(rand) {
-        const solution = PYR.generate(graph, rand);
-        edges = new Set(solution.slice(1).map((w, k) => pairKey(w, solution[parentOf(k + 1)])));
+      create(rand, { daily }) {
+        oneWay = downward && !(daily && daily < DOWNWARD_FROM);
+        const solution = PYR.generate(graph, rand, 4000, oneWay);
+        above = new Map(solution.slice(1).map((w, k) => [w, solution[parentOf(k + 1)]]));
         return { puzzle: { solution, labels: {} }, order: PYR.scramble(solution, rand) };
       },
       judge(P, order, ops, i) {
-        const key = pairKey(order[i], order[parentOf(i)]);
-        return { key, ok: edges.has(key) };
+        const top = order[parentOf(i)], below = order[i];
+        return { key: `${top}>${below}`, ok: above.get(below) === top };
       },
-      reveal: (P) => P.solution.slice(1).map((w, k) => graph.phrase.get(pairKey(w, P.solution[parentOf(k + 1)]))),
+      // Saved games from before links were judged by direction used "a|b" keys.
+      migrate(verdict) {
+        const out = {};
+        for (const [k, ok] of Object.entries(verdict)) {
+          if (k.includes('>')) { out[k] = ok; continue; }
+          const [a, b] = k.split('|');
+          if (!ok) { out[`${a}>${b}`] = false; out[`${b}>${a}`] = false; }
+          else if (above.get(b) === a) out[`${a}>${b}`] = true;
+          else if (above.get(a) === b) out[`${b}>${a}`] = true;
+        }
+        return out;
+      },
+      reveal: (P) => P.solution.slice(1).map((w, k) => {
+        const top = P.solution[parentOf(k + 1)];
+        return oneWay ? graph.join(top, w) : graph.phrase.get(PYR.pairKey(w, top));
+      }),
     });
   };
 })();
