@@ -8,6 +8,7 @@ Daily puzzles with no ads, accounts, trackers, or network calls. Everything runs
 | --- | --- | --- |
 | Wordle | Same word for everyone each day | Unlimited random words |
 | Betweenle | Same word each day, 14 guesses | Unlimited |
+| Pyragrams | 15-word pyramid, 4 checks, one valid arrangement | Unlimited |
 | Sudoku | Medium, unique solution | Easy / Medium / Hard |
 | Nonogram | 10×10, solvable line by line | 5×5 / 10×10 / 15×15 |
 | Minesweeper | 16×16, 40 mines, no guessing needed | Easy / Medium / Hard, first click safe |
@@ -21,6 +22,8 @@ index.html          hub: today's progress and streaks
 css/style.css       shared styles (light + dark)
 js/common.js        dates, seeded RNG, storage, stats, header, modals
 js/wordgame.js      word-game helpers (answer choice, keyboard)
+js/pyramid.js       pyramid-link puzzle generator (used by Pyragrams)
+js/phrases.js       two-word phrase list for Pyragrams — add lines to grow it
 js/words.js         generated word lists — rebuild with tools/build_words.py
 games/*.html        one self-contained page per game
 tools/answers.txt   curated answer words (edit, then rebuild)

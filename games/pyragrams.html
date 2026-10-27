@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Pyragrams · Puzzle Hub</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    main.game { max-width: 920px; }
+    .stage { position: relative; width: 100%; touch-action: none; user-select: none; -webkit-user-select: none; }
+    .stage svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+    .link { fill: none; stroke: var(--border); stroke-width: 4; stroke-linecap: round; transition: stroke .2s; }
+    .link.marked { stroke: var(--present); stroke-width: 5; }
+    .link.good { stroke: var(--correct); stroke-width: 6; }
+    .link.bad { stroke: var(--danger); stroke-dasharray: 3 9; stroke-width: 4; }
+    .hit { fill: none; stroke: transparent; stroke-width: 26; cursor: pointer; }
+    .pnode {
+      position: absolute; transform: translate(-50%, -50%); height: 42px; padding: 0 6px; border-radius: 12px;
+      display: grid; place-items: center; background: var(--surface); border: 2px solid var(--border); box-shadow: 0 3px 0 var(--raise);
+      font-weight: 900; font-size: 14px; cursor: grab; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      transition: left .35s ease, top .35s ease, transform .12s, border-color .15s; z-index: 1;
+    }
+    .pnode.sel { border-color: var(--game); box-shadow: 0 0 0 4px var(--game-soft), 0 3px 0 var(--raise); transform: translate(-50%, -50%) scale(1.06); }
+    .pnode.locked { border-color: var(--correct); background: color-mix(in srgb, var(--correct) 14%, var(--surface)); cursor: default; }
+    .pnode.root { background: var(--game); color: #fff; border-color: var(--game); box-shadow: 0 3px 0 var(--game-dark); }
+    .pnode.root.locked { border-color: var(--correct); box-shadow: 0 0 0 3px var(--correct); }
+    .pnode.drag { transition: none; z-index: 5; transform: translate(-50%, -50%) scale(1.1); cursor: grabbing; box-shadow: var(--shadow); }
+    .pnode.target { border-color: var(--game); border-style: dashed; }
+    .dots { display: flex; gap: 6px; }
+    .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--game); box-shadow: 0 2px 0 var(--game-dark); }
+    .dot.spent { background: var(--surface-2); box-shadow: none; }
+    .counter-sm { font-weight: 800; color: var(--muted); font-size: .9rem; }
+    .phrases { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; max-width: 640px; }
+    .phrases span { background: var(--game-soft); border-radius: 99px; padding: 4px 10px; font-weight: 800; font-size: .85rem; }
+  </style>
+</head>
+<body>
+  <main class="game">
+    <p class="subline" id="sub"></p>
+    <div class="toolbar">
+      <span class="timer" id="timer">0:00</span>
+      <div class="dots" id="dots" aria-label="Checks left"></div>
+      <span class="counter-sm" id="swaps"></span>
+      <button class="btn primary" id="checkBtn">Check</button>
+      <button class="btn" id="newBtn" hidden>New puzzle</button>
+    </div>
+    <div class="stage" id="stage"><svg id="links"></svg></div>
+    <div class="toolbar" id="after"></div>
+    <div class="phrases" id="phrases"></div>
+  </main>
+  <script src="../js/common.js"></script>
+  <script src="../js/phrases.js"></script>
+  <script src="../js/pyramid.js"></script>
+  <script>
+    const GAME = 'pyragrams', MAX = 4;
+    const { SIZE, parentOf, depthOf, pairKey } = PYR;
+    const help = () => PZ.showModal('How to play', `
+      <p>Rearrange the pyramid so every linked pair of words makes a common phrase or compound word, in either order. <b>card</b> above <b>game</b> works (card game), and so does <b>pressure</b> above <b>cooker</b>.</p>
+      <ul><li>Drag a word onto another to swap them, or tap one and then the other.</li>
+      <li>Tap a line to mark a link you're confident about (it turns gold). It's a note to yourself.</li>
+      <li>Press <b>Check</b> to test your pyramid. Correct links turn <b style="color:var(--correct)">green</b> and wrong ones break apart. Green links joined to the top word lock in place.</li>
+      <li>You get ${MAX} checks. There's only one arrangement where every link works.</li></ul>`);
+    PZ.header(GAME, { onHelp: help });
+
+    const graph = PYR.phraseGraph(window.PHRASES);
+    const today = PZ.todayKey();
+    const stage = document.getElementById('stage'), svg = document.getElementById('links');
+    const timer = PZ.stopwatch(document.getElementById('timer'));
+    let solution, edges, order, verdict, guesses, marks, swaps, over, sel = -1, nodeEls = new Map(), lastChecked = '';
+
+    // ---------- layout ----------
+    let pos = [];
+    function layout() {
+      const W = stage.clientWidth, wide = W >= 700;
+      if (wide) {
+        const nodeW = Math.min(108, W / 8 - 8);
+        pos = [...Array(SIZE)].map((_, i) => {
+          const d = depthOf(i), k = i - (2 ** d - 1);
+          return { x: ((k + 0.5) / 2 ** d) * W, y: 34 + d * 92, w: nodeW };
+        });
+        stage.style.height = `${34 * 2 + 3 * 92}px`;
+      } else {
+        const colW = W / 4, rowH = 52, H = rowH * 8;
+        pos = [...Array(SIZE)].map((_, i) => {
+          const d = depthOf(i), k = i - (2 ** d - 1);
+          return { x: colW * (d + 0.5), y: ((k + 0.5) / 2 ** d) * H, w: colW - 8 };
+        });
+        stage.style.height = `${H}px`;
+      }
+      stage.dataset.wide = wide ? '1' : '';
+      render();
+    }
+
+    // ---------- state helpers ----------
+    const linkTruth = (i) => edges.has(pairKey(order[i], order[parentOf(i)]));
+    // Locked words: the top word once it's confirmed, then every green link hanging from it.
+    function lockedSet() {
+      const locked = new Set();
+      const known = (i) => verdict[pairKey(order[i], order[parentOf(i)])] === true;
+      if (order[0] === solution[0] && (known(1) || known(2))) locked.add(0);
+      for (let i = 1; i < SIZE; i++) if (locked.has(parentOf(i)) && known(i)) locked.add(i);
+      return locked;
+    }
+    function persist() {
+      if (!PZ.isPractice && !over) PZ.saveDailyState(GAME, today, { order, verdict, guesses, marks: [...marks], swaps, elapsed: timer.seconds });
+    }
+
+    // ---------- rendering ----------
+    function render() {
+      if (!pos.length) return;
+      const wide = !!stage.dataset.wide, locked = over ? new Set([...Array(SIZE).keys()]) : lockedSet();
+      order.forEach((w, i) => {
+        const el = nodeEls.get(w);
+        if (!el.classList.contains('drag')) { el.style.left = `${pos[i].x}px`; el.style.top = `${pos[i].y}px`; }
+        el.style.width = `${pos[i].w}px`;
+        el.classList.toggle('sel', i === sel);
+        el.classList.toggle('locked', locked.has(i));
+        el.classList.toggle('root', i === 0);
+        el.dataset.i = i;
+      });
+      const paths = [];
+      for (let i = 1; i < SIZE; i++) {
+        const a = pos[parentOf(i)], b = pos[i], key = pairKey(order[i], order[parentOf(i)]);
+        const d = wide
+          ? `M${a.x},${a.y} C${a.x},${(a.y + b.y) / 2} ${b.x},${(a.y + b.y) / 2} ${b.x},${b.y}`
+          : `M${a.x},${a.y} C${(a.x + b.x) / 2},${a.y} ${(a.x + b.x) / 2},${b.y} ${b.x},${b.y}`;
+        const cls = verdict[key] === true || over ? 'good' : verdict[key] === false ? 'bad' : marks.has(key) ? 'marked' : '';
+        paths.push(`<path class="link ${cls}" d="${d}"/><path class="hit" data-key="${key}" d="${d}"/>`);
+      }
+      svg.innerHTML = paths.join('');
+      document.getElementById('dots').replaceChildren(...[...Array(MAX)].map((_, k) => PZ.el('span', { class: `dot${k < guesses.length ? ' spent' : ''}` })));
+      document.getElementById('swaps').textContent = `${swaps} swap${swaps === 1 ? '' : 's'}`;
+      const btn = document.getElementById('checkBtn');
+      btn.disabled = over;
+      btn.textContent = over ? 'Done' : `Check (${MAX - guesses.length} left)`;
+    }
+
+    // ---------- interaction ----------
+    function swap(i, j) {
+      if (i === j || over) return;
+      const locked = lockedSet();
+      if (locked.has(i) || locked.has(j)) return PZ.toast('That word is locked in');
+      [order[i], order[j]] = [order[j], order[i]];
+      swaps++;
+      timer.start();
+      persist();
+    }
+    function tap(i) {
+      if (over) return;
+      if (lockedSet().has(i)) { sel = -1; render(); return PZ.toast('That word is locked in'); }
+      if (sel < 0) sel = i;
+      else if (sel === i) sel = -1;
+      else { swap(sel, i); sel = -1; }
+      render();
+    }
+
+    let drag = null;
+    const nodeAt = (x, y, skip) => document.elementsFromPoint(x, y).find((e) => e.classList?.contains('pnode') && e !== skip);
+    stage.addEventListener('pointerdown', (e) => {
+      const el = e.target.closest('.pnode');
+      if (!el || over) return;
+      drag = { el, i: +el.dataset.i, x: e.clientX, y: e.clientY, moved: false, target: null };
+    });
+    window.addEventListener('pointermove', (e) => {
+      if (!drag) return;
+      if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 8) return;
+      if (!drag.moved) {
+        if (lockedSet().has(drag.i)) { drag = null; return PZ.toast('That word is locked in'); }
+        drag.moved = true;
+        drag.el.classList.add('drag');
+      }
+      const r = stage.getBoundingClientRect();
+      drag.el.style.left = `${e.clientX - r.left}px`;
+      drag.el.style.top = `${e.clientY - r.top}px`;
+      const t = nodeAt(e.clientX, e.clientY, drag.el);
+      if (drag.target !== t) { drag.target?.classList.remove('target'); drag.target = t; t?.classList.add('target'); }
+    });
+    window.addEventListener('pointerup', () => {
+      if (!drag) return;
+      const d = drag;
+      drag = null;
+      d.target?.classList.remove('target');
+      d.el.classList.remove('drag');
+      if (!d.moved) return tap(d.i);
+      if (d.target) swap(d.i, +d.target.dataset.i);
+      sel = -1;
+      render();
+    });
+    svg.addEventListener('click', (e) => {
+      const key = e.target.dataset?.key;
+      if (!key || over || verdict[key] != null) return;
+      marks.has(key) ? marks.delete(key) : marks.add(key);
+      render();
+      persist();
+    });
+
+    function check() {
+      if (over) return;
+      const sig = order.join(',');
+      if (sig === lastChecked) return PZ.toast('Swap something before checking again');
+      lastChecked = sig;
+      timer.start();
+      const result = [];
+      for (let i = 1; i < SIZE; i++) {
+        const ok = linkTruth(i);
+        verdict[pairKey(order[i], order[parentOf(i)])] = ok;
+        result.push(ok);
+      }
+      guesses.push(result);
+      sel = -1;
+      const solved = result.every(Boolean);
+      if (solved || guesses.length >= MAX) return finish(solved, true);
+      const good = result.filter(Boolean).length;
+      PZ.toast(`${good} of ${result.length} links correct`);
+      render();
+      persist();
+    }
+    document.getElementById('checkBtn').onclick = check;
+
+    function shareText(won) {
+      const rows = guesses.map((g) => g.map((ok) => (ok ? '🟩' : '🟥')).join('')).join('\n');
+      return `Pyragrams ${PZ.isPractice ? '(practice)' : today} ${won ? guesses.length : 'X'}/${MAX} · ${swaps} swaps · ${PZ.formatTime(timer.seconds)}\n${rows}`;
+    }
+
+    function finish(won, fresh) {
+      over = true;
+      timer.stop();
+      if (!won) order = solution.slice();
+      if (!PZ.isPractice && fresh) PZ.recordDaily(GAME, today, won, won ? guesses.length : null);
+      if (!PZ.isPractice) PZ.saveDailyState(GAME, today, { order, verdict, guesses, marks: [...marks], swaps, elapsed: timer.seconds, done: won ? 'won' : 'lost' });
+      render();
+      document.getElementById('after').replaceChildren(
+        PZ.el('span', { class: `done-banner${won ? '' : ' lost'}` }, won ? `Solved with ${guesses.length} check${guesses.length > 1 ? 's' : ''}` : 'Out of checks. Here’s the answer'),
+        PZ.el('button', { class: 'btn', onclick: async () => { try { await navigator.clipboard.writeText(shareText(won)); PZ.toast('Copied'); } catch { PZ.toast('Could not copy'); } } }, 'Copy result'),
+        PZ.isPractice ? PZ.el('button', { class: 'btn primary', onclick: fresh0 }, 'New puzzle') : '');
+      document.getElementById('phrases').replaceChildren(...solution.slice(1).map((w, k) => PZ.el('span', {}, graph.phrase.get(pairKey(w, solution[parentOf(k + 1)])))));
+      if (won && fresh) PZ.confetti();
+      if (fresh && !PZ.isPractice) setTimeout(() => PZ.showModal(won ? 'Pyramid complete!' : 'Out of checks', PZ.statsPanel(GAME)), won ? 1000 : 500);
+    }
+
+    function start(seed, saved) {
+      const rand = PZ.rng(seed);
+      solution = PYR.generate(graph, rand);
+      edges = new Set(solution.slice(1).map((w, k) => pairKey(w, solution[parentOf(k + 1)])));
+      order = saved?.order || PYR.scramble(solution, rand);
+      verdict = saved?.verdict || {};
+      guesses = saved?.guesses || [];
+      marks = new Set(saved?.marks || []);
+      swaps = saved?.swaps || 0;
+      over = false; sel = -1; lastChecked = '';
+      timer.set(saved?.elapsed || 0);
+      document.getElementById('after').replaceChildren();
+      document.getElementById('phrases').replaceChildren();
+      nodeEls.forEach((el) => el.remove());
+      nodeEls = new Map(solution.map((w) => [w, PZ.el('div', { class: 'pnode' }, w)]));
+      stage.append(...nodeEls.values());
+      layout();
+    }
+    function fresh0() { start(Math.random() * 2 ** 32); }
+
+    window.addEventListener('resize', layout);
+    if (PZ.isPractice) {
+      document.getElementById('sub').textContent = 'Practice: endless pyramids, no effect on stats';
+      document.getElementById('newBtn').hidden = false;
+      document.getElementById('newBtn').onclick = fresh0;
+      fresh0();
+    } else {
+      document.getElementById('sub').textContent = `Daily · ${PZ.prettyDate(today)}`;
+      const saved = PZ.dailyState(GAME, today);
+      start(PZ.hash(`${GAME}-${today}`), saved);
+      if (saved?.done) finish(saved.done === 'won', false);
+      else if (!PZ.getStats(GAME).played && !saved) help();
+    }
+    window.addEventListener('pagehide', persist);
+  </script>
+</body>
+</html>
